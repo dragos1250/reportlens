@@ -107,3 +107,55 @@ E5 expects `query: ` before questions and `passage: ` before chunks; `Embedder` 
   not state the Group net debt figure. "Net debt" occurs only 4 times (pages 183, 193,
   196), and page 193 describes the cash and investments included in net debt.
   Lesson: check every evaluation question against the document before using it.
+
+### Retrieval evaluation (hit@5)
+
+Questions: `eval/retrieval_questions.jsonl`, 10 hand-written questions, 5 Romanian-English
+pairs, expected pages checked in the PDF. Pages are **physical PDF pages**; printed page
+numbers differ (offset 5 at the start, e.g. printed 15 = PDF 20; offset 8 later, e.g.
+printed 172 = PDF 180).
+
+| | e5-small | e5-base |
+|---|---|---|
+| hit@5, all | 3/10 (30%) | 4/10 (40%) |
+| hit@5, English | 2/5 (40%) | 2/5 (40%) |
+| hit@5, Romanian | 1/5 (20%) | 2/5 (40%) |
+| Model in HF cache | 471 MB | 1083 MB |
+| Embedding 2575 chunks | 42-45 s | 136.6 s |
+| Vectors | 4.0 MB (384 dim) | 7.9 MB (768 dim) |
+
+Rank of the best chunk on an expected page, in the full ranking of 2575 chunks
+(5 or less = hit):
+
+| Question | e5-small | e5-base |
+|---|---|---|
+| q01 en - undrawn committed credit facilities | 1 | 1 |
+| q02 ro - same | 13 | 3 |
+| q03 en - total revenue FY26 | 16 | 6 |
+| q04 ro - same | 12 | 6 |
+| q05 en - three strategic priorities | 1 | 1 |
+| q06 ro - same | 1 | 1 |
+| q07 en - direct-to-device satellite partner | 19 | 27 |
+| q08 ro - same | 55 | 10 |
+| q09 en - Chair of the Board | 15 | 18 |
+| q10 ro - same | 19 | 21 |
+
+With 10 questions, one question is 10 points: the gap between the two models is a single
+question (q02) and is not conclusive. The default stays e5-small for now.
+
+Why the misses happen (observed in the chunks; causes are hypotheses until tested):
+
+- **Abbreviation mismatch (q07, q08).** The answer is one sentence on page 38:
+  "We are partnering with AST SpaceMobile to enable D2D satellite connectivity".
+  The question says "direct-to-device"; the text says "D2D", inside a 988-character
+  chunk about other topics.
+- **Answer split from its subject (q09, q10).** Page 11 ends a letter with
+  "Jean-François van Boxmeer, Chair"; page 85 has "in his capacity as Chair of the Board"
+  in one chunk, with the name in another.
+- **Generic wording pulls in other chunks (q03, q04).** Page 17 has "Total revenue:
+  Increased 8.0% to €40.5 billion", yet ranks 6-16. The top results are chunks with
+  "year ended 31 March 2026" and three of them start with the leftover header bar
+  "Vodafone Group Plc Annual Report on Form 20-F 2026 ...". An earlier, shorter sample
+  query ("What was total revenue in FY26?") found pages 11 and 17 at ranks 1-2.
+- Most misses are near misses (rank 6-27). Candidates to test: keyword search and
+  re-ranking (stage 5), removing the remaining header bars.
