@@ -14,11 +14,14 @@ DEFAULT_OVERLAP_CHARS = 150
 
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
 _PARAGRAPH_BREAK = re.compile(r"\n\s*\n")
+# pdfplumber writes "(cid:N)" for glyphs with no Unicode mapping (e.g. decorative icons).
+_UNMAPPED_GLYPH = re.compile(r"\(cid:\d+\)")
 
 
 def clean_paragraph(text: str) -> str:
-    """Join words hyphenated across lines and collapse whitespace."""
+    """Remove unmapped glyphs, join words hyphenated across lines, collapse whitespace."""
     text = text.replace("­", "")  # soft hyphen
+    text = _UNMAPPED_GLYPH.sub("", text)
     text = re.sub(r"(\w)-\n(?=[a-z])", r"\1", text)  # "opera-\ntional" -> "operational"
     return re.sub(r"\s+", " ", text).strip()
 

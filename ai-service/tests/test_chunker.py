@@ -18,6 +18,14 @@ def test_clean_paragraph_keeps_real_hyphens():
     assert clean_paragraph("year-on-year\nGrowth-\nRate") == "year-on-year Growth- Rate"
 
 
+def test_clean_paragraph_removes_unmapped_glyphs():
+    assert clean_paragraph("continued (cid:2) Other(cid:2)(cid:17) Europe") == "continued Other Europe"
+
+
+def test_split_paragraphs_drops_paragraph_made_only_of_unmapped_glyphs():
+    assert split_paragraphs("(cid:2)\n\nTitle") == ["Title"]
+
+
 def test_split_paragraphs_drops_empty_ones():
     assert split_paragraphs("First\nline.\n\n\n  \n\nSecond.") == ["First line.", "Second."]
 
