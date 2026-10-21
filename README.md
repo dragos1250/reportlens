@@ -93,7 +93,7 @@ cp .env.example .env
 # add your LLM API key to .env  (never commit this file!)
 
 # 3. Download the public reports used for testing
-./scripts/download_reports.sh
+python scripts/download_reports.py
 
 # 4. Start everything
 docker compose up --build
