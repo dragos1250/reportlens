@@ -340,3 +340,31 @@ Observations:
 - **q10: page-level hit, chunk-level miss**, like q02 in stage 4: the chunk sent from
   page 85 lists committees, not the Chair's name.
 - Translation stays opt-in; not decided as default.
+
+## Stage 6: "not in the report" guard (in progress)
+
+Two layers:
+
+1. **Score guard, in code, before the LLM call.** Signal: cosine similarity of the
+   closest chunk (`Searcher.best_semantic_score`, e5-small), available whatever the
+   search method (hybrid RRF scores only reflect ranks; the reranker is optional).
+   Below `--min-score` the question is refused with a fixed message in the question's
+   language, status `not_in_report`, no LLM call, no cost.
+   Default **0.75**: the e5 model card says its cosine scores "distribute around 0.7 to
+   1.0", so 0.75 is near the bottom and only refuses clearly unrelated questions.
+   Not tuned on any evaluation question; `-1` turns the guard off.
+2. **The LLM's `not_found` status** (from stage 4) for questions that pass the guard.
+
+Measured so far (2026-10-22, gpt-6-luna, hybrid, guard 0.75):
+
+| | Value |
+|---|---|
+| Best chunk score, 10 answerable questions | min 0.832, median 0.869, max 0.898 |
+| Answerable questions refused by the guard (wrong refusals, layer 1) | 0/10 |
+| Answerable questions refused by the LLM (layer 2) | 6/10: q02, q03, q04, q08, q09, q10, the same retrieval misses as in stage 4 |
+| Answers citing an expected page | 4/10 |
+| Cost, 10 questions | $0.000370 |
+| One off-topic probe, "What is a good recipe for pancakes?" | best score 0.776: passed the guard, refused by the LLM (`not_found`) |
+
+Not measured yet: correct refusals on unanswerable questions. The file
+`eval/not_in_report_questions.jsonl` was not in the repository when this ran.
