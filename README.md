@@ -118,7 +118,7 @@ Quality is measured, not assumed. A hand-written test set of questions with expe
 - [x] 🧭 Semantic search with embeddings (CLI prototype)
 - [x] 💬 Question answering with citations (CLI prototype)
 - [x] 🔎 Hybrid search and re-ranking
-- [ ] 🚫 "Not in the report" guardrail
+- [x] 🚫 "Not in the report" guardrail
 - [ ] ☕ Spring Boot API and database
 - [ ] ⚛️ React UI with PDF viewer and highlighted citations
 - [ ] 🖍️ Select & explain
