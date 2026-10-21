@@ -7,5 +7,11 @@ sentence-transformers==6.2.0
 # Vector maths: similarity search and .npy storage
 numpy==2.4.6
 
+# Official OpenAI SDK (Responses API), used only in generation/llm.py
+openai==3.36.0
+
+# Reads LLM_PROVIDER, LLM_MODEL, LLM_API_KEY from .env
+python-dotenv==1.2.4
+
 # Test runner
 pytest==9.1.1
