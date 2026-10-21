@@ -1,9 +1,10 @@
 import json
 
 import numpy as np
+import pytest
 
 from fakes import FakeLLMClient
-from generation.evaluate import count_by_lang, run
+from generation.evaluate import count_by_lang, load_questions, refusal_counts, run
 from retrieval.embedder import Embedder
 from retrieval.index import Index
 from retrieval.search import Searcher
@@ -64,3 +65,47 @@ def test_run_stops_when_budget_is_reached():
     # 0.00055 after one call, 0.0011 after two: the third question is not asked.
     assert stopped
     assert len(graded) == 2 and len(llm.requests) == 2
+
+
+def unanswerable(qid, lang="en"):
+    return {"id": qid, "lang": lang, "question": "q", "doc_id": "d", "answerable": False, "expected_pages": []}
+
+
+def test_load_questions_defaults_to_answerable_and_allows_no_pages_when_unanswerable(tmp_path):
+    path = tmp_path / "q.jsonl"
+    path.write_text(
+        json.dumps({"id": "a", "lang": "en", "question": "?", "doc_id": "d", "expected_pages": [1]}) + "\n"
+        + json.dumps({"id": "b", "lang": "ro", "question": "?", "doc_id": "d", "answerable": False}) + "\n",
+        encoding="utf-8")
+    first, second = load_questions(path)
+    assert first["answerable"] is True
+    assert second["answerable"] is False and second["expected_pages"] == []
+
+
+def test_answerable_question_still_needs_expected_pages(tmp_path):
+    path = tmp_path / "q.jsonl"
+    path.write_text(json.dumps({"id": "a", "lang": "en", "question": "?", "doc_id": "d"}) + "\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="missing expected_pages"):
+        load_questions(path)
+
+
+def test_refusals_are_counted_per_group_and_layer():
+    not_found = json.dumps({"status": "not_found", "answer": "Not in the passages.", "cited": []})
+    answered = json.dumps({"status": "answered", "answer": "Fact [P1].", "cited": ["P1"]})
+    # Calls: u1 -> not_found (LLM refusal), u2 -> answered (missed refusal), a1 -> not_found (wrong refusal)
+    llm = FakeLLMClient([not_found, answered, not_found])
+    graded, _ = run([unanswerable("u1"), unanswerable("u2"), question("a1", "en", [11])],
+                    lambda doc_id: SEARCHER, llm, "semantic", 1200, max_cost=1.0, min_score=0.5)
+    counts = refusal_counts(graded)
+    assert counts["unanswerable"] == {"total": 2, "refused": 1, "by_guard": 0, "by_llm": 1}
+    assert counts["answerable"] == {"total": 1, "refused": 1, "by_guard": 0, "by_llm": 1}
+
+
+def test_guard_refusals_make_no_llm_call_and_count_as_refusals():
+    llm = cites_p1()
+    # Best score is 1.0 here, so a threshold above it refuses everything.
+    graded, _ = run([unanswerable("u1"), question("a1", "en", [11])],
+                    lambda doc_id: SEARCHER, llm, "semantic", 1200, max_cost=1.0, min_score=1.01)
+    assert llm.requests == []
+    counts = refusal_counts(graded)
+    assert counts["unanswerable"]["by_guard"] == 1 and counts["answerable"]["by_guard"] == 1
