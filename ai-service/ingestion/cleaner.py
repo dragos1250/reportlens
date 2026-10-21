@@ -9,6 +9,8 @@ from collections import Counter
 # A line counts as a header/footer if its normalised form is the first or last
 # line on at least this many pages. Conservative: real text rarely repeats this often.
 DEFAULT_EDGE_MIN_PAGES = 20
+# Upper bound on peeling passes (page number, then header bar, ...).
+DEFAULT_EDGE_MAX_PASSES = 3
 
 # pdfplumber writes "(cid:N)" for glyphs with no Unicode mapping (e.g. decorative icons).
 UNMAPPED_GLYPH = re.compile(r"\(cid:\d+\)")
@@ -26,13 +28,27 @@ def _edge_indexes(lines: list[str]) -> set[int]:
 
 
 def remove_repeated_edge_lines(page_texts: list[str],
-                               min_pages: int = DEFAULT_EDGE_MIN_PAGES) -> tuple[list[str], int]:
-    """Drop the first/last line of a page when it repeats at the edge of many pages.
+                               min_pages: int = DEFAULT_EDGE_MIN_PAGES,
+                               max_passes: int = DEFAULT_EDGE_MAX_PASSES) -> tuple[list[str], int]:
+    """Peel repeated lines off the top and bottom of pages.
 
-    Only the first and last line of each page are candidates, so text in the
-    middle of a page is never removed. Returns the cleaned texts and how many
-    lines were removed.
+    Each pass removes the first/last line of a page when it repeats at the edge
+    of many pages. Removing a page number can expose a header bar below it, so
+    passes repeat until nothing is removed (at most max_passes). A line is only
+    removed once it is at the edge, so the peeling stops at the first ordinary
+    line. Returns the cleaned texts and how many lines were removed.
     """
+    removed_total = 0
+    for _ in range(max_passes):
+        page_texts, removed = _remove_edge_pass(page_texts, min_pages)
+        removed_total += removed
+        if removed == 0:
+            break
+    return page_texts, removed_total
+
+
+def _remove_edge_pass(page_texts: list[str], min_pages: int) -> tuple[list[str], int]:
+    """One pass: drop the current first/last line where it repeats on min_pages pages."""
     pages_lines = [text.split("\n") for text in page_texts]
 
     edge_counts: Counter[str] = Counter()

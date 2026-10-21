@@ -51,15 +51,33 @@ while ordinary lines that happen to sit at a page edge repeat at most 14 times
 | 41 | `Strategic report Governance Financials Other information Vodafone Group Plc Annual Report on Form #-F #` |
 | 41 | `#` (page number alone) |
 
-Chunks went from 2614 to 2575. 42 chunks still contain the header bar (page 5 and
+Chunks went from 2614 to 2575. 42 chunks still contained the header bar (page 5 and
 mostly even pages 146-230): there the page number is the first line and the header is
-the second, so it is not an edge line.
+the second, so it was not an edge line.
+
+**Update (stage 5, step 0): repeated peeling.** The same rule now runs in passes
+(at most 3, `DEFAULT_EDGE_MAX_PASSES`): removing a page number exposes the header
+below it, which is then checked like any edge line. Peeling stops at the first line
+that is not repeated on 20 pages. Lines removed per pass:
+
+| Pass | Lines | What |
+|---|---|---|
+| 1 | 327 | the five keys in the table above |
+| 2 | 159 | 42 header bars below a page number; 76 second line of the exhibit banner; 41 page numbers exposed by pass 1 (all checked: printed page = PDF page minus 5-9) |
+| 3 | 75 | `Page # of #` exhibit footers |
+
+Total 561 lines; chunks 2575 -> 2549; chunks with the header bar 42 -> 0.
+
+Effect on retrieval (e5-small, 10 questions): hit@5 3/10 -> 3/10, hit@10 3/10 -> 4/10,
+hit@20 9/10 -> 9/10. Cleaner chunks, but no gain at rank 5: q03/q04 lost the
+header-bar chunks from their top 5 and still miss.
 
 ### Known gaps
 
 - 116 of 588 pages have no text layer (scanned exhibits, pages 262 and 341-581).
   They are skipped; OCR is out of scope for now.
-- Header bar left in 42 chunks (see above).
+- The exhibit banner "CERTAIN IDENTIFIED INFORMATION ..." is left in 7 chunks where it
+  is not at a page edge.
 
 ## Stage 3: embeddings and vector search
 
