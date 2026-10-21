@@ -169,9 +169,14 @@ docker compose up -d db
 cd ai-service && python -m storage.load --doc-id vodafone-20f-fy26
 # 3. AI service
 uvicorn api.main:app --port 8000
-# 4. backend (reads POSTGRES_* from the environment, not from .env)
-cd backend && ./mvnw spring-boot:run
+# 4. backend (reads POSTGRES_* from the environment, not from .env; see README.md)
+cd backend && POSTGRES_PASSWORD="$(grep -E '^POSTGRES_PASSWORD=' ../.env | cut -d= -f2-)" ./mvnw spring-boot:run
 ```
+
+Checked on 2026-10-22 after recreating the database volume with the password from `.env`:
+the backend started with the variable passed only to its process, Flyway applied
+migration 1, and `GET /api/conversations` returned 200 with no authentication errors.
+No password is in any tracked file or in the git history.
 
 On Windows, send UTF-8 request bodies from a client that encodes them correctly (httpx,
 Postman): `curl` in Git Bash turned "ă" into "?" during testing.
