@@ -48,15 +48,20 @@ class Graded:
 
 
 def run(questions: list[dict], searcher_for: Callable[[str], Searcher], llm: LLMClient, method: str,
-        max_output_tokens: int, max_cost: float) -> tuple[list[Graded], bool]:
-    """Answer each question; stop before the next one once spending reaches max_cost."""
+        max_output_tokens: int, max_cost: float, translate: bool = False) -> tuple[list[Graded], bool]:
+    """Answer each question; stop before the next one once spending reaches max_cost.
+
+    With translate=True, non-English questions (by their "lang" field) are
+    searched with an English translation.
+    """
     graded: list[Graded] = []
     spent = 0.0
     for question in questions:
         if spent >= max_cost:
             return graded, True
         answer = answer_question(question["question"], searcher_for(question["doc_id"]), llm,
-                                 method, max_output_tokens=max_output_tokens)
+                                 method, max_output_tokens=max_output_tokens,
+                                 lang=question["lang"], translate=translate)
         spent += answer.cost_usd or 0.0
         graded.append(Graded(question, answer))
     return graded, False
@@ -71,14 +76,15 @@ def count_by_lang(graded: list[Graded], predicate: Callable[[Graded], bool]) -> 
     return {key: (n, total) for key, (n, total) in counts.items()}
 
 
-def save_run(graded: list[Graded], model: str) -> Path:
+def save_run(graded: list[Graded], model: str, suffix: str = "") -> Path:
     RUNS_DIR.mkdir(parents=True, exist_ok=True)
-    path = RUNS_DIR / f"{datetime.now():%Y%m%d-%H%M%S}-{model}.jsonl"
+    path = RUNS_DIR / f"{datetime.now():%Y%m%d-%H%M%S}-{model}{suffix}.jsonl"
     with path.open("w", encoding="utf-8") as f:
         for g in graded:
             a, r = g.answer, g.answer.response
             f.write(json.dumps({
                 "id": g.question["id"], "lang": g.question["lang"], "question": g.question["question"],
+                "search_query": a.search_query, "translation_cost_usd": a.translation_cost_usd,
                 "expected_pages": g.question["expected_pages"], "status": a.status,
                 "answer": a.rendered, "cited_pages": a.check.pages, "invalid": a.check.invalid,
                 "problems": a.problems, "sent_pages": [c["page"] for c in a.passages.values()],
@@ -97,6 +103,8 @@ def main() -> None:
     parser.add_argument("--reranker", default=DEFAULT_RERANKER)
     parser.add_argument("--max-output-tokens", type=int, default=DEFAULT_MAX_OUTPUT_TOKENS)
     parser.add_argument("--max-cost", type=float, default=DEFAULT_MAX_COST_USD, help="USD for the whole run")
+    parser.add_argument("--translate-query", action="store_true",
+                        help="search non-English questions with an English translation (off by default)")
     args = parser.parse_args()
 
     questions = load_questions(args.questions)
@@ -108,12 +116,16 @@ def main() -> None:
             searchers[doc_id] = build_searcher(doc_id, args.method, args.reranker)
         return searchers[doc_id]
 
-    graded, stopped = run(questions, searcher_for, llm, args.method, args.max_output_tokens, args.max_cost)
+    graded, stopped = run(questions, searcher_for, llm, args.method, args.max_output_tokens, args.max_cost,
+                          translate=args.translate_query)
 
-    print(f"model: {llm.model} | retrieval: {args.method} | max_output_tokens: {args.max_output_tokens}\n")
+    print(f"model: {llm.model} | retrieval: {args.method} | max_output_tokens: {args.max_output_tokens} "
+          f"| translate query: {'on' if args.translate_query else 'off'}\n")
     for g in graded:
         a, r = g.answer, g.answer.response
         print(f"=== {g.question['id']} ({g.question['lang']}) {g.question['question']}")
+        if a.translation is not None:
+            print(f"search query (translated): {a.search_query}")
         print(f"expected pages {g.question['expected_pages']} | sent {[c['page'] for c in a.passages.values()]} "
               f"| cited {a.check.pages} | status {a.status}"
               f"{' | CITES EXPECTED PAGE' if g.cites_expected_page else ''}")
@@ -135,12 +147,15 @@ def main() -> None:
     print(f"  status: {dict(statuses)} (incomplete: {statuses.get('incomplete', 0)})")
     print(f"  invalid citations: {sum(len(g.answer.check.invalid) for g in graded)}")
     costs = [g.answer.cost_usd for g in graded if g.answer.cost_usd is not None]
-    print(f"  total cost: ${sum(costs):.6f} for {len(graded)} questions")
+    translated = [g.answer for g in graded if g.answer.translation is not None]
+    translation_cost = sum(a.translation_cost_usd or 0.0 for a in translated)
+    print(f"  translation calls: {len(translated)}, cost ${translation_cost:.6f}")
+    print(f"  total cost: ${sum(costs):.6f} for {len(graded)} questions (translation included)")
     llm_times = [g.answer.llm_seconds for g in graded]
     total_times = [g.answer.llm_seconds + g.answer.retrieval_seconds for g in graded]
     print(f"  LLM time per question: median {statistics.median(llm_times):.2f}s, max {max(llm_times):.2f}s")
     print(f"  total time per question: median {statistics.median(total_times):.2f}s, max {max(total_times):.2f}s")
-    print(f"  saved to {save_run(graded, llm.model)}")
+    print(f"  saved to {save_run(graded, llm.model, '-translated' if args.translate_query else '')}")
 
 
 if __name__ == "__main__":

@@ -40,6 +40,23 @@ def test_counts_answers_citing_an_expected_page_per_language():
     assert all(g.expected_page_was_sent for g in graded)
 
 
+def test_translation_is_only_requested_for_non_english_questions():
+    answer_json = json.dumps({"status": "not_found", "answer": "x", "cited": []})
+    # Calls in order: q1 (en) answer; q2 (ro) translation, then answer.
+    llm = FakeLLMClient([answer_json, "translated question", answer_json])
+    graded, _ = run([question("q1", "en", [11]), question("q2", "ro", [11])],
+                    lambda doc_id: SEARCHER, llm, "semantic", 1200, max_cost=1.0, translate=True)
+    assert len(llm.requests) == 3
+    assert graded[0].answer.translation is None
+    assert graded[1].answer.search_query == "translated question"
+
+
+def test_translation_is_off_by_default():
+    llm = cites_p1()
+    run([question("q2", "ro", [11])], lambda doc_id: SEARCHER, llm, "semantic", 1200, max_cost=1.0)
+    assert len(llm.requests) == 1
+
+
 def test_run_stops_when_budget_is_reached():
     questions = [question(f"q{i}", "en", [11]) for i in range(5)]
     llm = cites_p1()
