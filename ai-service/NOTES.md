@@ -98,11 +98,12 @@ E5 expects `query: ` before questions and `passage: ` before chunks; `Embedder` 
 ### Observations from three sample queries
 
 - **Scores do not separate good from bad results.** Top-5 scores ranged from 0.786
-  to 0.868 across all three queries. A completely wrong result scored 0.809, while
+  to 0.868 across all three queries. An irrelevant result scored 0.809, while
   correct ones scored 0.843-0.868. A fixed score threshold will not work as the
   "not in the report" guardrail (stage 6).
-- **A Romanian question failed.** "Care este datoria netă a grupului la sfârșitul anului?"
-  (net debt) returned only directors' pay and board composition passages; none
-  mention net debt. The English question on total revenue found pages 11 and 17 at
-  ranks 1-2. BM25 (stage 5) will not fix this by itself, since the Romanian words do
-  not occur in the English text.
+- **One sample question had no valid answer in the document.** "Care este datoria netă
+  a grupului la sfârșitul anului?" (Group net debt at year end) returned directors' pay
+  and board passages. This is not a weakness of Romanian retrieval: this Form 20-F does
+  not state the Group net debt figure. "Net debt" occurs only 4 times (pages 183, 193,
+  196), and page 193 describes the cash and investments included in net debt.
+  Lesson: check every evaluation question against the document before using it.
