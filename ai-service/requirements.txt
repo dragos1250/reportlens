@@ -1,5 +1,11 @@
 # PDF text and table extraction, page by page (MIT license)
 pdfplumber==0.11.10
 
+# Embedding models (pulls in torch, CPU build on Windows, and transformers)
+sentence-transformers==6.2.0
+
+# Vector maths: similarity search and .npy storage
+numpy==2.4.6
+
 # Test runner
 pytest==9.1.1
