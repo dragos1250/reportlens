@@ -75,6 +75,40 @@ def test_output_that_is_not_json_is_reported():
     assert answer.status == "invalid_output"
 
 
+def test_without_translation_the_question_itself_is_searched_and_no_extra_call_is_made():
+    llm = FakeLLMClient(llm_output("not_found", "x", []))
+    answer = answer_question("Cu ce companie colaborează?", searcher(), llm, method="bm25", lang="ro")
+    assert answer.search_query == "Cu ce companie colaborează?"
+    assert answer.translation is None and len(llm.requests) == 1
+
+
+def test_translated_query_is_searched_but_answer_is_for_original_question():
+    # BM25 finds page 38 only through the English words of the translation.
+    llm = FakeLLMClient(["Which company is Vodafone partnering with?",
+                         llm_output("answered", "AST SpaceMobile [P1].", ["P1"])])
+    answer = answer_question("Cu ce companie colaborează Vodafone?", searcher(), llm,
+                             method="bm25", lang="ro", translate=True)
+    assert answer.search_query == "Which company is Vodafone partnering with?"
+    assert answer.check.pages == [38]
+    answer_prompt = llm.requests[1]["user"]
+    assert "Cu ce companie colaborează Vodafone?" in answer_prompt
+    assert "Which company" not in answer_prompt
+
+
+def test_english_question_with_translation_enabled_makes_no_translation_call():
+    llm = FakeLLMClient(llm_output("not_found", "x", []))
+    answer = answer_question("Who is the Chair?", searcher(), llm, method="bm25", lang="en", translate=True)
+    assert answer.translation is None and len(llm.requests) == 1
+
+
+def test_total_cost_includes_translation():
+    llm = FakeLLMClient(["partnering", llm_output("not_found", "x", [])],
+                        input_tokens=1500, output_tokens=800)  # $0.00055 per call
+    answer = answer_question("q", searcher(), llm, method="bm25", lang="ro", translate=True)
+    assert round(answer.translation_cost_usd, 8) == 0.00055
+    assert round(answer.cost_usd, 8) == 0.0011
+
+
 def test_cost_comes_from_token_counts():
     llm = FakeLLMClient(llm_output("not_found", "x", []), input_tokens=1500, output_tokens=800)
     answer = answer_question("q", searcher(), llm, method="semantic")
