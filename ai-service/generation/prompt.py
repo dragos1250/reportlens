@@ -35,6 +35,18 @@ ANSWER_SCHEMA = {
 }
 
 
+LANGUAGE_NAMES = {"en": "English", "ro": "Romanian"}
+
+
+def build_system_prompt(lang: str | None = None) -> str:
+    """System prompt; when the question's language is known, state it explicitly
+    instead of letting the model guess it from the question."""
+    if lang is None:
+        return SYSTEM_PROMPT
+    name = LANGUAGE_NAMES.get(lang, f"the language with code '{lang}'")
+    return f"{SYSTEM_PROMPT}\n\nThe question is in {name}. Write the answer in {name}."
+
+
 def escape(text: str) -> str:
     """Make text safe to place between tags: no '<' or '>' survives."""
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")

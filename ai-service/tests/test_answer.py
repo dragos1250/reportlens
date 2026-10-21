@@ -50,6 +50,20 @@ def test_llm_gets_system_prompt_schema_limit_and_at_most_max_passages():
     assert request["user"].count("<passage ") == 2
 
 
+def test_known_language_is_stated_in_the_system_prompt():
+    llm = FakeLLMClient(llm_output("not_found", "Nu apare.", []))
+    answer_question("Câți bitcoini deține Vodafone?", searcher(), llm, method="semantic", lang="ro")
+    system = llm.requests[0]["system"]
+    assert system.startswith(SYSTEM_PROMPT)
+    assert system.endswith("The question is in Romanian. Write the answer in Romanian.")
+
+
+def test_unknown_language_keeps_the_original_system_prompt():
+    llm = FakeLLMClient(llm_output("not_found", "x", []))
+    answer_question("q", searcher(), llm, method="semantic")
+    assert llm.requests[0]["system"] == SYSTEM_PROMPT
+
+
 def test_not_found_is_reported_as_such():
     llm = FakeLLMClient(llm_output("not_found", "The passages do not contain this.", []))
     answer = answer_question("q", searcher(), llm, method="semantic")

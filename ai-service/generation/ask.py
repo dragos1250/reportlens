@@ -69,7 +69,8 @@ def main() -> None:
     parser.add_argument("--model", help="overrides LLM_MODEL from .env")
     parser.add_argument("--passages", type=int, default=MAX_PASSAGES)
     parser.add_argument("--max-output-tokens", type=int, default=DEFAULT_MAX_OUTPUT_TOKENS)
-    parser.add_argument("--lang", default=SEARCH_LANGUAGE, help="language of the question, e.g. ro (default en)")
+    parser.add_argument("--lang", help="language of the question, e.g. ro; if omitted, the model infers it "
+                                       f"and translation treats the question as '{SEARCH_LANGUAGE}'")
     parser.add_argument("--translate-query", action="store_true",
                         help="search with an English translation of a non-English question (off by default)")
     parser.add_argument("--min-score", type=float, default=DEFAULT_MIN_SCORE,

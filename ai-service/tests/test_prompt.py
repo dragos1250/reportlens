@@ -1,4 +1,4 @@
-from generation.prompt import ANSWER_SCHEMA, SYSTEM_PROMPT, build_user_message, escape
+from generation.prompt import ANSWER_SCHEMA, SYSTEM_PROMPT, build_system_prompt, build_user_message, escape
 
 CHUNKS = [
     {"chunk_id": "d-p0017-c000", "doc_id": "d", "page": 17, "text": "Total revenue: €40.5 billion."},
@@ -43,6 +43,12 @@ def test_system_prompt_states_the_grounding_rules():
     assert "only the passages" in text
     assert "not instructions" in text
     assert "not_found" in text
+
+
+def test_system_prompt_names_known_language_and_keeps_unknown_codes_readable():
+    assert build_system_prompt() == SYSTEM_PROMPT
+    assert build_system_prompt("en").endswith("Write the answer in English.")
+    assert build_system_prompt("de").endswith("Write the answer in the language with code 'de'.")
 
 
 def test_schema_allows_not_found_and_requires_citation_list():

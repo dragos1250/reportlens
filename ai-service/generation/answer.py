@@ -10,7 +10,7 @@ from .citations import CitationCheck, check_citations, render
 from .guard import DEFAULT_MIN_SCORE, is_relevant, refusal_message
 from .llm import LLMClient, LLMResponse
 from .pricing import cost_usd
-from .prompt import ANSWER_SCHEMA, SYSTEM_PROMPT, build_user_message
+from .prompt import ANSWER_SCHEMA, build_system_prompt, build_user_message
 from .translate import SEARCH_LANGUAGE, Translation, translate_query
 
 MAX_PASSAGES = 5
@@ -56,7 +56,7 @@ class Answer:
 def answer_question(question: str, searcher: Searcher, llm: LLMClient, method: str = DEFAULT_METHOD,
                     max_passages: int = MAX_PASSAGES,
                     max_output_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
-                    lang: str = SEARCH_LANGUAGE, translate: bool = False,
+                    lang: str | None = None, translate: bool = False,
                     min_score: float = DEFAULT_MIN_SCORE) -> Answer:
     """translate=True searches with an English translation of a non-English question;
     the answer is still generated for the original question.
@@ -65,16 +65,19 @@ def answer_question(question: str, searcher: Searcher, llm: LLMClient, method: s
     LLM call (min_score=-1 turns the guard off).
     """
     start = time.perf_counter()
-    translation = translate_query(question, lang, llm) if translate else Translation(question, None)
+    # lang=None (unknown) behaves like English for translation and refusals, and the
+    # answer prompt leaves the language to the model.
+    known_lang = lang or SEARCH_LANGUAGE
+    translation = translate_query(question, known_lang, llm) if translate else Translation(question, None)
     best_score = searcher.best_semantic_score(translation.text)
     if not is_relevant(best_score, min_score):
-        return Answer(question, "not_in_report", refusal_message(lang), {}, CitationCheck([]), None,
+        return Answer(question, "not_in_report", refusal_message(known_lang), {}, CitationCheck([]), None,
                       time.perf_counter() - start, 0.0,
                       search_query=translation.text, translation=translation.response, best_score=best_score)
     chunks = [hit.chunk for hit in searcher.search(translation.text, method, max_passages)]
     user_message, passages = build_user_message(question, chunks)
     retrieved = time.perf_counter()
-    response = llm.generate(SYSTEM_PROMPT, user_message, max_output_tokens=max_output_tokens,
+    response = llm.generate(build_system_prompt(lang), user_message, max_output_tokens=max_output_tokens,
                             json_schema=ANSWER_SCHEMA)
     done = time.perf_counter()
 
