@@ -289,3 +289,54 @@ What this shows:
   statuses, 22 times the cost, about 1 s slower. Quality is capped by retrieval.
 - The luna cost of q01 ($0.000038) is low because OpenAI served most of the prompt from
   its cache (the same question had been asked a minute earlier).
+
+### Experiment: translating Romanian questions before search (opt-in)
+
+`--translate-query` (off by default): a question whose `lang` is not `en` is translated
+into English by the LLM and the search uses the translation; the answer is still
+generated for the original question. The language is given explicitly (`lang` in the
+evaluation file, `--lang` in `ask`); English questions make no translation call.
+Default search unchanged: hybrid, no reranker. Model: gpt-6-luna. Run on 2026-10-22,
+same code for both runs.
+
+| | translation off | translation on |
+|---|---|---|
+| Expected page among the 5 passages sent (hit@5), all | 5/10 | 6/10 |
+| Romanian / English | 2/5 / 3/5 | 3/5 / 3/5 |
+| Answers citing an expected page, all | 4/10 | 5/10 |
+| Romanian / English | 1/5 / 3/5 | 2/5 / 3/5 |
+| Status answered / not_found | 4 / 6 | 5 / 5 |
+| Incomplete / invalid citations | 0 / 0 | 0 / 0 |
+| Translation calls | 0 | 5 (only the Romanian questions) |
+| Translation cost | $0 | $0.000090 |
+| Total cost, 10 questions | $0.000357 | $0.001172 |
+| Time per question: median / max | 2.20 s / 3.77 s | 2.74 s / 4.81 s |
+
+Total costs are lower than in stage 4 because OpenAI served repeated prompts from its
+cache; the translated Romanian questions produce new prompts and are not cached.
+
+Romanian questions, translation on:
+
+| | Translation used for search | Expected page sent | Result |
+|---|---|---|---|
+| q02 | "What was the value of the Group's committed but undrawn credit facilities as of March 31, 2026?" | yes (193, 25, 195) | answered, cites p. 193 (was not_found) |
+| q04 | "What was Vodafone Group's total revenue for the year ended 31 March 2026?" | no | not_found (unchanged) |
+| q06 | "What are Vodafone's three strategic priorities?" | yes | answered, cites p. 12 (unchanged) |
+| q08 | "Which company is Vodafone partnering with for direct-to-phone satellite connectivity?" | no | not_found (unchanged) |
+| q10 | "Who is the chairman of the board of directors of Vodafone Group?" | page 85 yes, but chunk `p0085-c000` without the name | not_found (unchanged) |
+
+Observations:
+
+- **One more correct answer (q02)**, at about $0.00002 per translation.
+- **q04 now behaves like its English twin q03**: the translation is the English question
+  word for word, and both miss for the same retrieval reason (pages 27 and 23 rank first).
+- **The translation is not deterministic, and small wording changes matter (q08).**
+  In a single `ask` run before the evaluation, the translation was "...partnering with
+  *to provide* direct-to-phone..." and page 38 was sent and cited. In the evaluation
+  it was "...partnering with *for* direct-to-phone..." and page 38 was not in the top 5.
+  Re-running the (deterministic) search with each translation confirms it: only the first
+  one puts `p0038-c001` in the top 5. A single run per setting is therefore not enough
+  to measure this option reliably.
+- **q10: page-level hit, chunk-level miss**, like q02 in stage 4: the chunk sent from
+  page 85 lists committees, not the Chair's name.
+- Translation stays opt-in; not decided as default.
