@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🔍 ReportLens
+# 🔍 ReportLens 🔍
 
 ### Read annual reports with an AI assistant that explains and **cites** everything
 
