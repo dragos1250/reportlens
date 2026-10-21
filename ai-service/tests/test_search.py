@@ -81,6 +81,11 @@ def test_hybrid_rerank_without_reranker_fails_clearly():
         searcher().search("q", "hybrid+rerank")
 
 
+def test_best_semantic_score_is_the_highest_cosine_similarity():
+    # Query [0, 1, 0] against rows [1,0,0], [0,1,0], [0.6,0.8,0]: best is row 1.
+    assert searcher().best_semantic_score("anything") == 1.0
+
+
 def test_snippet_flattens_whitespace_and_truncates():
     assert snippet("a\n\nb   c") == "a b c"
     assert snippet("word " * 100, n=20) == "word word word word…"

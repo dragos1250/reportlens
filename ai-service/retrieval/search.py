@@ -47,6 +47,14 @@ class Searcher:
         self.reranker = reranker
         self.bm25 = BM25([tokenize(chunk["text"]) for chunk in index.chunks])
 
+    def best_semantic_score(self, query: str) -> float:
+        """Cosine similarity of the closest chunk: a relevance signal for every method.
+
+        Hybrid (RRF) scores only reflect ranks and the reranker is optional, so the
+        "not in the report" guard uses this score.
+        """
+        return float(np.max(self.index.vectors @ self.embedder.embed_query(query)))
+
     def _semantic(self, query: str, k: int) -> list[tuple[int, float]]:
         return top_k(self.embedder.embed_query(query), self.index.vectors, k)
 
