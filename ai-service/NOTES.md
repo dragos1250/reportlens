@@ -241,3 +241,51 @@ With models already loaded: retrieval takes about 0.01 s (hybrid), 0.57 s (hybri
 or 6.2 s (hybrid + bge). Answer generation by the LLM (stage 4) comes on top and is not
 measured yet. One-off model loading at startup, measured in this session: e5-small 7.6 s
 (cached), mMiniLM 22.1 s and bge 32.1 s (first load, including download).
+
+## Stage 4: answer generation with citations
+
+Retrieval: hybrid (no reranker), top 5 passages. LLM: OpenAI Responses API,
+`reasoning.effort = "low"`, `max_output_tokens = 1200`, structured output
+(`status`, `answer`, `cited`), `store = false`.
+
+- **Citations are passage ids, not page numbers.** The model cites `[P2]`; the code maps
+  P2 to the document and page it sent. A cited page is therefore always a page that was
+  actually provided; an id that was not sent is reported as an invalid citation.
+- **Passages are data.** Instructions are in the system message; the question and passages
+  are in the user message inside `<question>` / `<passage>` blocks, with `<`, `>`, `&` and
+  quotes escaped, so text in a PDF cannot close a block or add a fake passage. The model
+  has no tools.
+- **Cost** is computed from the token counts the API returns and a price table copied
+  from the OpenAI pricing page (checked 2026-10-21).
+
+### Results on the 10 questions (2026-10-21)
+
+| | gpt-6-luna | gpt-6.1-sol |
+|---|---|---|
+| Answers citing an expected page, all | 4/10 | 4/10 |
+| Romanian / English | 1/5 / 3/5 | 1/5 / 3/5 |
+| Expected page among the 5 passages sent (upper bound) | 5/10 | 5/10 |
+| Status answered / not_found | 4 / 6 | 4 / 6 |
+| Incomplete (hit max_output_tokens) | 0 | 0 |
+| Invalid citations | 0 | 0 |
+| Reasoning tokens (all questions) | 0 | 0 |
+| Total cost, 10 questions | $0.001660 | $0.036327 |
+| LLM time per question: median / max | 1.91 s / 2.80 s | 2.96 s / 3.97 s |
+
+Per question (same for both models): answered with a correct page citation on q01, q05,
+q06, q07; not_found on q02, q03, q04, q08, q09, q10. Checked by hand: every answered
+question states what the cited passage says (q01 "€7.6 billion": luna cited page 25,
+sol page 195; both pages state it). Sol translated "Customers, Simplicity and Growth"
+into Romanian for q06; luna kept the English names.
+
+What this shows:
+
+- **Every miss was a retrieval miss, answered honestly.** In all 6 not_found cases the
+  passage with the answer was not among the 5 sent, and both models said so instead of
+  guessing. No answer cited a passage that was not provided.
+- **"Expected page sent" overstates by one (q02):** a chunk of page 193 was sent, but not
+  the one containing the figure (`p0193-c005`).
+- **The more expensive model brings nothing measurable here:** same citations and
+  statuses, 22 times the cost, about 1 s slower. Quality is capped by retrieval.
+- The luna cost of q01 ($0.000038) is low because OpenAI served most of the prompt from
+  its cache (the same question had been asked a minute earlier).
