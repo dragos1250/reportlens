@@ -177,3 +177,67 @@ Why the misses happen (observed in the chunks; causes are hypotheses until teste
   query ("What was total revenue in FY26?") found pages 11 and 17 at ranks 1-2.
 - Most misses are near misses (rank 6-27). Candidates to test: keyword search and
   re-ranking (stage 5), removing the remaining header bars.
+
+## Stage 5: hybrid search and reranking
+
+Setup, fixed before looking at results (no tuning on the 10 questions):
+BM25 written by hand with k1 = 1.5, b = 0.75; Reciprocal Rank Fusion with k = 60 over
+the top 50 of semantic (e5-small) and top 50 of BM25; the top 30 fused candidates go to
+the cross-encoder. Chunks: 2549, after the header peeling in stage 5, step 0.
+
+### Results (10 questions, 5 Romanian-English pairs)
+
+| | semantic | bm25 | hybrid | hybrid + rerank (mMiniLM) | hybrid + rerank (bge) |
+|---|---|---|---|---|---|
+| hit@5, all | 3/10 | 4/10 | 5/10 | 5/10 | **7/10** |
+| hit@5, ro | 1/5 | 0/5 | 2/5 | 2/5 | 2/5 |
+| hit@5, en | 2/5 | 4/5 | 3/5 | 3/5 | **5/5** |
+| hit@10, all | 4/10 | 6/10 | 7/10 | 6/10 | 7/10 |
+| hit@10, ro | 2/5 | 2/5 | 2/5 | 2/5 | 2/5 |
+| hit@10, en | 2/5 | 4/5 | 5/5 | 4/5 | 5/5 |
+| hit@20, all | **9/10** | 6/10 | 8/10 | 8/10 | 8/10 |
+| hit@20, ro | 4/5 | 2/5 | 3/5 | 4/5 | 3/5 |
+| hit@20, en | 5/5 | 4/5 | 5/5 | 4/5 | 5/5 |
+| Reranker, 30 candidates: median / max | - | - | - | 0.56 s / 0.61 s | 6.21 s / 7.16 s |
+| Retrieval per question (warm) | 0.01 s | < 0.01 s | 0.01 s | 0.57 s | 6.22 s |
+
+Rerankers: `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1` (470 MB in cache, Apache-2.0) and
+`BAAI/bge-reranker-v2-m3` (2188 MB in cache, Apache-2.0). Times measured on CPU, models
+already loaded, after one unmeasured warm-up query.
+
+Rank of the first chunk on an expected page (">20" = not in the top 20):
+
+| Question | semantic | bm25 | hybrid | + mMiniLM | + bge |
+|---|---|---|---|---|---|
+| q01 en credit facilities | 1 | 2 | 1 | 1 | 1 |
+| q02 ro | 12 | 7 | 2 | 1 | 2 |
+| q03 en total revenue | 11 | >20 | 9 | >20 | 5 |
+| q04 ro | 8 | >20 | >20 | 19 | >20 |
+| q05 en strategic priorities | 1 | 2 | 1 | 1 | 1 |
+| q06 ro | 1 | 7 | 1 | 1 | 1 |
+| q07 en satellite partner | 20 | 1 | 4 | 3 | 2 |
+| q08 ro | >20 | >20 | >20 | >20 | >20 |
+| q09 en Chair of the Board | 15 | 3 | 8 | 8 | 2 |
+| q10 ro | 19 | >20 | 11 | 11 | 17 |
+
+### What the numbers say (and do not say)
+
+- **BM25 helps English, not Romanian.** English questions share words with the English
+  text (q07: "satellite" -> page 38 at rank 1); Romanian ones match only names, numbers
+  and dates (BM25 hit@20 ro: 2/5).
+- **Hybrid is the best cheap option:** hit@5 3/10 -> 5/10 at about 0.01 s per question.
+  It can push a page out of the top 20 that semantic alone had (hit@20 9 -> 8: q04).
+- **bge improves English to 5/5 at hit@5, but costs about 6 s per question on CPU**,
+  11 times slower than mMiniLM. mMiniLM adds nothing over hybrid at hit@5.
+- **No reranker fixes Romanian questions whose page is not among the 30 candidates**
+  (q04, q08). Candidate generation, not reranking, is the limit there.
+- With 10 questions, one question is 10 points; the English/Romanian split has 5 each.
+  These are signals, not conclusions. Parameters stay at the standard values until a
+  larger set with a dev/test split exists (stage 10).
+
+### Time for one question in the app (measured parts only)
+
+With models already loaded: retrieval takes about 0.01 s (hybrid), 0.57 s (hybrid + mMiniLM)
+or 6.2 s (hybrid + bge). Answer generation by the LLM (stage 4) comes on top and is not
+measured yet. One-off model loading at startup, measured in this session: e5-small 7.6 s
+(cached), mMiniLM 22.1 s and bge 32.1 s (first load, including download).
