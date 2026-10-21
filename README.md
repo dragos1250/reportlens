@@ -134,6 +134,7 @@ reportlens/
 ├── ai-service/     # FastAPI: ingestion, retrieval, generation
 ├── eval/           # test questions and evaluation scripts
 ├── scripts/        # helper scripts (download reports, etc.)
+├── data/           # local only, git-ignored (downloaded PDFs, caches)
 └── docker-compose.yml
 ```
 
