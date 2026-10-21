@@ -115,6 +115,7 @@ Quality is measured, not assumed. A hand-written test set of questions with expe
 
 - [x] 🎬 Project setup and repository
 - [x] 📥 PDF ingestion and chunking with page metadata
+- [x] 🧭 Semantic search with embeddings (CLI prototype)
 - [ ] 💬 Question answering with citations (CLI prototype)
 - [ ] 🔎 Hybrid search and re-ranking
 - [ ] 🚫 "Not in the report" guardrail
