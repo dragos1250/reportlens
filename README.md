@@ -114,7 +114,7 @@ Quality is measured, not assumed. A hand-written test set of questions with expe
 ## 🗺️ Roadmap
 
 - [x] 🎬 Project setup and repository
-- [ ] 📥 PDF ingestion and chunking with page metadata
+- [x] 📥 PDF ingestion and chunking with page metadata
 - [ ] 💬 Question answering with citations (CLI prototype)
 - [ ] 🔎 Hybrid search and re-ranking
 - [ ] 🚫 "Not in the report" guardrail
