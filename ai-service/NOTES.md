@@ -26,9 +26,32 @@ Without table detection, the same run gives 2614 text chunks, page 180 reads
 The table chunking code (`table_to_chunks`) is kept and tested for reports whose
 tables have ruling lines.
 
+## Header/footer removal is conservative
+
+**Decision:** only the first and last line of a page can be removed, and only if its
+normalised form (digits replaced by `#`) is the first or last line on at least 20 pages
+(`--edge-min-pages`). Text in the middle of a page is never touched.
+
+**Why 20:** on the Vodafone Form 20-F FY26, the real headers/footers repeat on 41-85 pages,
+while ordinary lines that happen to sit at a page edge repeat at most 14 times
+("Exhibit #.#"), most only 1-2 times.
+
+**Result on that report:** 327 lines removed, all headers, footers or page numbers:
+
+| Pages | Line (normalised) |
+|---|---|
+| 85 | `Strategic report Governance Financials Other information Vodafone Group Plc Annual Report on Form #-F # #` |
+| 84 | `# Vodafone Group Plc Annual Report on Form #-F # Strategic report Governance Financials Other information` |
+| 76 | `CERTAIN IDENTIFIED INFORMATION HAS BEEN EXCLUDED FROM THIS EXHIBIT ...` |
+| 41 | `Strategic report Governance Financials Other information Vodafone Group Plc Annual Report on Form #-F #` |
+| 41 | `#` (page number alone) |
+
+Chunks went from 2614 to 2575. 42 chunks still contain the header bar (page 5 and
+mostly even pages 146-230): there the page number is the first line and the header is
+the second, so it is not an edge line.
+
 ## Known gaps
 
 - 116 of 588 pages have no text layer (scanned exhibits, pages 262 and 341-581).
   They are skipped; OCR is out of scope for now.
-- Repeated headers/footers (e.g. "Strategic report Governance Financials Other
-  information Vodafone Group Plc Annual Report on Form 20-F 2026") are not removed yet.
+- Header bar left in 42 chunks (see above).

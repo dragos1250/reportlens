@@ -5,6 +5,7 @@ Pure functions on plain text: no PDF library here, so the logic is easy to test.
 
 import re
 
+from .cleaner import UNMAPPED_GLYPH
 from .models import Chunk, Page, Table
 
 # Starting values, not measured yet. To be tuned against the embedding model
@@ -14,14 +15,12 @@ DEFAULT_OVERLAP_CHARS = 150
 
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
 _PARAGRAPH_BREAK = re.compile(r"\n\s*\n")
-# pdfplumber writes "(cid:N)" for glyphs with no Unicode mapping (e.g. decorative icons).
-_UNMAPPED_GLYPH = re.compile(r"\(cid:\d+\)")
 
 
 def clean_paragraph(text: str) -> str:
     """Remove unmapped glyphs, join words hyphenated across lines, collapse whitespace."""
     text = text.replace("­", "")  # soft hyphen
-    text = _UNMAPPED_GLYPH.sub("", text)
+    text = UNMAPPED_GLYPH.sub("", text)
     text = re.sub(r"(\w)-\n(?=[a-z])", r"\1", text)  # "opera-\ntional" -> "operational"
     return re.sub(r"\s+", " ", text).strip()
 

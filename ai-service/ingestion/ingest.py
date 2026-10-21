@@ -11,6 +11,7 @@ from collections import Counter
 from pathlib import Path
 
 from .chunker import DEFAULT_MAX_CHARS, DEFAULT_OVERLAP_CHARS, chunk_page
+from .cleaner import DEFAULT_EDGE_MIN_PAGES, remove_repeated_edge_lines
 from .pdf_reader import read_pdf
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -27,6 +28,8 @@ def main() -> None:
     parser.add_argument("--overlap", type=int, default=DEFAULT_OVERLAP_CHARS)
     parser.add_argument("--tables", action="store_true",
                         help="detect ruled tables and store them as separate chunks (off by default)")
+    parser.add_argument("--edge-min-pages", type=int, default=DEFAULT_EDGE_MIN_PAGES,
+                        help="remove a first/last page line repeated on at least this many pages")
     args = parser.parse_args()
 
     out = args.out or DEFAULT_OUT_DIR / f"{args.doc_id}.chunks.jsonl"
@@ -40,6 +43,10 @@ def main() -> None:
 
     pages = read_pdf(args.pdf, detect_tables=args.tables, on_progress=report_progress)
     empty_pages = [p.number for p in pages if not p.text.strip() and not p.tables]
+
+    texts, removed_lines = remove_repeated_edge_lines([p.text for p in pages], args.edge_min_pages)
+    for page, text in zip(pages, texts):
+        page.text = text
     kinds: Counter[str] = Counter()
 
     with out.open("w", encoding="utf-8") as f:
@@ -52,6 +59,7 @@ def main() -> None:
     print(f"tables detected:  {sum(len(p.tables) for p in pages)}")
     print(f"chunks:           {sum(kinds.values())} (text: {kinds['text']}, table: {kinds['table']})")
     print(f"pages without text: {len(empty_pages)} {empty_pages if empty_pages else ''}")
+    print(f"header/footer lines removed: {removed_lines}")
     print(f"time:             {time.perf_counter() - start:.1f}s")
     print(f"written to:       {out}")
 
