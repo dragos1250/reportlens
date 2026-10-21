@@ -15,6 +15,7 @@ from retrieval.reranker import DEFAULT_RERANKER, Reranker
 from retrieval.search import METHODS, Searcher, snippet
 
 from .answer import DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_METHOD, MAX_PASSAGES, Answer, answer_question
+from .guard import DEFAULT_MIN_SCORE
 from .llm import client_from_env
 from .translate import SEARCH_LANGUAGE
 
@@ -49,7 +50,12 @@ def print_answer(answer: Answer) -> None:
         print(f" {flag} {marker}  {chunk['doc_id']} p.{chunk['page']:<4} {snippet(chunk['text'], 110)}")
     for problem in answer.problems:
         print(f"WARNING: {problem}")
-    print(f"\nmodel: {r.model} | tokens in {r.input_tokens}, out {r.output_tokens} "
+    print(f"\nbest chunk score: {answer.best_score:.3f}")
+    if r is None:
+        print(f"refused by the guard before any LLM call | cost {format_cost(answer)} | "
+              f"time {answer.retrieval_seconds:.2f}s")
+        return
+    print(f"model: {r.model} | tokens in {r.input_tokens}, out {r.output_tokens} "
           f"(reasoning {r.reasoning_tokens}) | cost {format_cost(answer)} | "
           f"time: retrieval {answer.retrieval_seconds:.2f}s, LLM {answer.llm_seconds:.2f}s")
 
@@ -66,12 +72,15 @@ def main() -> None:
     parser.add_argument("--lang", default=SEARCH_LANGUAGE, help="language of the question, e.g. ro (default en)")
     parser.add_argument("--translate-query", action="store_true",
                         help="search with an English translation of a non-English question (off by default)")
+    parser.add_argument("--min-score", type=float, default=DEFAULT_MIN_SCORE,
+                        help=f"refuse without an LLM call if the best chunk scores below this "
+                             f"(default {DEFAULT_MIN_SCORE}; -1 turns the guard off)")
     args = parser.parse_args()
 
     searcher = build_searcher(args.doc_id, args.method, args.reranker)
     llm = client_from_env(args.model)
     answer = answer_question(args.question, searcher, llm, args.method, args.passages, args.max_output_tokens,
-                             lang=args.lang, translate=args.translate_query)
+                             lang=args.lang, translate=args.translate_query, min_score=args.min_score)
     print_answer(answer)
 
 

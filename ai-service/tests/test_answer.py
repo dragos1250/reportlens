@@ -109,6 +109,31 @@ def test_total_cost_includes_translation():
     assert round(answer.cost_usd, 8) == 0.0011
 
 
+def test_guard_refuses_weak_matches_without_calling_the_llm():
+    llm = FakeLLMClient(llm_output("answered", "Guess [P1].", ["P1"]))
+    # The fixed query vector scores 1.0 against the closest chunk.
+    answer = answer_question("q", searcher(), llm, method="semantic", lang="ro", min_score=1.01)
+    assert answer.status == "not_in_report"
+    assert answer.text == "Raportul nu pare să conțină informații despre această întrebare."
+    assert llm.requests == []
+    assert answer.response is None and answer.passages == {}
+    assert answer.cost_usd == 0.0
+    assert answer.best_score == 1.0
+
+
+def test_guard_lets_good_matches_through_and_records_the_score():
+    llm = FakeLLMClient(llm_output("answered", "Revenue [P1].", ["P1"]))
+    answer = answer_question("q", searcher(), llm, method="semantic", min_score=0.75)
+    assert answer.status == "answered" and len(llm.requests) == 1
+    assert answer.best_score == 1.0
+
+
+def test_guard_can_be_turned_off():
+    llm = FakeLLMClient(llm_output("not_found", "x", []))
+    answer_question("q", searcher(), llm, method="semantic", min_score=-1)
+    assert len(llm.requests) == 1
+
+
 def test_cost_comes_from_token_counts():
     llm = FakeLLMClient(llm_output("not_found", "x", []), input_tokens=1500, output_tokens=800)
     answer = answer_question("q", searcher(), llm, method="semantic")

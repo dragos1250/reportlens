@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from retrieval.search import Searcher
 
 from .citations import CitationCheck, check_citations, render
+from .guard import DEFAULT_MIN_SCORE, is_relevant, refusal_message
 from .llm import LLMClient, LLMResponse
 from .pricing import cost_usd
 from .prompt import ANSWER_SCHEMA, SYSTEM_PROMPT, build_user_message
@@ -20,17 +21,19 @@ DEFAULT_METHOD = "hybrid"
 @dataclass
 class Answer:
     question: str
-    # "answered", "not_found", "incomplete" (hit max_output_tokens), "invalid_output" (not the expected JSON)
+    # "answered", "not_found" (LLM found no answer in the passages), "not_in_report" (refused by
+    # the guard, no LLM call), "incomplete" (hit max_output_tokens), "invalid_output" (not the JSON)
     status: str
-    text: str  # as written by the model, with [P#] markers
-    passages: dict[str, dict]  # {"P1": chunk, ...} as sent to the model
+    text: str  # as written by the model, with [P#] markers (or the guard's refusal)
+    passages: dict[str, dict]  # {"P1": chunk, ...} as sent to the model; empty if refused by the guard
     check: CitationCheck
-    response: LLMResponse
+    response: LLMResponse | None  # None when the guard refused before calling the LLM
     retrieval_seconds: float  # includes the translation call, if any
     llm_seconds: float
     problems: list[str] = field(default_factory=list)
     search_query: str = ""  # what the search used: the question, or its translation
     translation: LLMResponse | None = None  # None when no translation call was made
+    best_score: float | None = None  # cosine similarity of the closest chunk (guard signal)
 
     @property
     def rendered(self) -> str:
@@ -43,7 +46,8 @@ class Answer:
     @property
     def cost_usd(self) -> float | None:
         """Total: answer plus translation. None if either price is unknown."""
-        answer_cost, translation_cost = cost_usd(self.response), self.translation_cost_usd
+        answer_cost = cost_usd(self.response) if self.response else 0.0
+        translation_cost = self.translation_cost_usd
         if answer_cost is None or translation_cost is None:
             return None
         return answer_cost + translation_cost
@@ -52,11 +56,21 @@ class Answer:
 def answer_question(question: str, searcher: Searcher, llm: LLMClient, method: str = DEFAULT_METHOD,
                     max_passages: int = MAX_PASSAGES,
                     max_output_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
-                    lang: str = SEARCH_LANGUAGE, translate: bool = False) -> Answer:
+                    lang: str = SEARCH_LANGUAGE, translate: bool = False,
+                    min_score: float = DEFAULT_MIN_SCORE) -> Answer:
     """translate=True searches with an English translation of a non-English question;
-    the answer is still generated for the original question."""
+    the answer is still generated for the original question.
+
+    If the closest chunk scores below min_score, the question is refused without an
+    LLM call (min_score=-1 turns the guard off).
+    """
     start = time.perf_counter()
     translation = translate_query(question, lang, llm) if translate else Translation(question, None)
+    best_score = searcher.best_semantic_score(translation.text)
+    if not is_relevant(best_score, min_score):
+        return Answer(question, "not_in_report", refusal_message(lang), {}, CitationCheck([]), None,
+                      time.perf_counter() - start, 0.0,
+                      search_query=translation.text, translation=translation.response, best_score=best_score)
     chunks = [hit.chunk for hit in searcher.search(translation.text, method, max_passages)]
     user_message, passages = build_user_message(question, chunks)
     retrieved = time.perf_counter()
@@ -67,7 +81,7 @@ def answer_question(question: str, searcher: Searcher, llm: LLMClient, method: s
     def result(status: str, text: str, check: CitationCheck, problems: list[str]) -> Answer:
         return Answer(question, status, text, passages, check, response,
                       retrieved - start, done - retrieved, problems,
-                      search_query=translation.text, translation=translation.response)
+                      search_query=translation.text, translation=translation.response, best_score=best_score)
 
     if response.incomplete_reason:
         return result("incomplete", response.text, CitationCheck([]),
