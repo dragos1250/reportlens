@@ -13,5 +13,12 @@ openai==3.36.0
 # Reads LLM_PROVIDER, LLM_MODEL, LLM_API_KEY from .env
 python-dotenv==1.2.4
 
+# HTTP API over retrieval and generation (api/), and the server that runs it
+fastapi==0.159.1
+uvicorn==0.54.0
+
 # Test runner
 pytest==9.1.1
+
+# HTTP client used by FastAPI's TestClient in tests/test_api.py
+httpx==0.28.1
