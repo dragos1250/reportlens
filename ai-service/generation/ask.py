@@ -10,9 +10,9 @@ import argparse
 
 from retrieval.embedder import DEFAULT_MODEL as DEFAULT_EMBEDDING_MODEL
 from retrieval.embedder import Embedder
-from retrieval.index import load_index
 from retrieval.reranker import DEFAULT_RERANKER, Reranker
 from retrieval.search import METHODS, Searcher, snippet
+from storage.factory import DEFAULT_STORE, STORES, make_searcher
 
 from .answer import DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_METHOD, MAX_PASSAGES, Answer, answer_question
 from .guard import DEFAULT_MIN_SCORE
@@ -20,10 +20,9 @@ from .llm import client_from_env
 from .translate import SEARCH_LANGUAGE
 
 
-def build_searcher(doc_id: str, method: str, reranker_name: str) -> Searcher:
+def build_searcher(doc_id: str, method: str, reranker_name: str, store: str = DEFAULT_STORE) -> Searcher:
     reranker = Reranker(reranker_name) if method == "hybrid+rerank" else None
-    index = load_index(doc_id, DEFAULT_EMBEDDING_MODEL)
-    return Searcher(index, Embedder(DEFAULT_EMBEDDING_MODEL), reranker)
+    return make_searcher(doc_id, DEFAULT_EMBEDDING_MODEL, Embedder(DEFAULT_EMBEDDING_MODEL), reranker, store)
 
 
 def format_usd(cost: float | None) -> str:
@@ -76,9 +75,11 @@ def main() -> None:
     parser.add_argument("--min-score", type=float, default=DEFAULT_MIN_SCORE,
                         help=f"refuse without an LLM call if the best chunk scores below this "
                              f"(default {DEFAULT_MIN_SCORE}; -1 turns the guard off)")
+    parser.add_argument("--store", choices=STORES, default=DEFAULT_STORE,
+                        help="where the chunk vectors are searched (default postgres)")
     args = parser.parse_args()
 
-    searcher = build_searcher(args.doc_id, args.method, args.reranker)
+    searcher = build_searcher(args.doc_id, args.method, args.reranker, args.store)
     llm = client_from_env(args.model)
     answer = answer_question(args.question, searcher, llm, args.method, args.passages, args.max_output_tokens,
                              lang=args.lang, translate=args.translate_query, min_score=args.min_score)

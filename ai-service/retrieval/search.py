@@ -6,13 +6,14 @@ Usage (from ai-service/):
 
 import argparse
 from dataclasses import dataclass
+from typing import Protocol
 
 import numpy as np
 
 from .bm25 import BM25, tokenize
 from .embedder import DEFAULT_MODEL, Embedder
 from .hybrid import reciprocal_rank_fusion
-from .index import Index, load_index
+from .index import Index
 from .reranker import DEFAULT_RERANKER, Reranker
 
 METHODS = ("semantic", "bm25", "hybrid", "hybrid+rerank")
@@ -40,11 +41,33 @@ def top_k(query_vector: np.ndarray, vectors: np.ndarray, k: int) -> list[tuple[i
     return [(int(i), float(scores[i])) for i in order]
 
 
+class VectorStore(Protocol):
+    """Where the chunk vectors live: in memory (numpy) or in PostgreSQL (storage/pgstore.py)."""
+
+    def top_k(self, query_vector: np.ndarray, k: int) -> list[tuple[int, float]]: ...
+
+    def best_score(self, query_vector: np.ndarray) -> float: ...
+
+
+class NumpyVectorStore:
+    def __init__(self, vectors: np.ndarray):
+        self.vectors = vectors
+
+    def top_k(self, query_vector: np.ndarray, k: int) -> list[tuple[int, float]]:
+        return top_k(query_vector, self.vectors, k)
+
+    def best_score(self, query_vector: np.ndarray) -> float:
+        return float(np.max(self.vectors @ query_vector))
+
+
 class Searcher:
-    def __init__(self, index: Index, embedder: Embedder, reranker: Reranker | None = None):
+    def __init__(self, index: Index, embedder: Embedder, reranker: Reranker | None = None,
+                 vector_store: VectorStore | None = None):
+        """vector_store defaults to the in-memory vectors of the index."""
         self.index = index
         self.embedder = embedder
         self.reranker = reranker
+        self.vectors = vector_store or NumpyVectorStore(index.vectors)
         self.bm25 = BM25([tokenize(chunk["text"]) for chunk in index.chunks])
 
     def best_semantic_score(self, query: str) -> float:
@@ -53,10 +76,10 @@ class Searcher:
         Hybrid (RRF) scores only reflect ranks and the reranker is optional, so the
         "not in the report" guard uses this score.
         """
-        return float(np.max(self.index.vectors @ self.embedder.embed_query(query)))
+        return self.vectors.best_score(self.embedder.embed_query(query))
 
     def _semantic(self, query: str, k: int) -> list[tuple[int, float]]:
-        return top_k(self.embedder.embed_query(query), self.index.vectors, k)
+        return self.vectors.top_k(self.embedder.embed_query(query), k)
 
     def _keyword(self, query: str, k: int) -> list[tuple[int, float]]:
         return self.bm25.top(tokenize(query), k)
@@ -99,10 +122,14 @@ def main() -> None:
     parser.add_argument("--method", choices=METHODS, default="semantic")
     parser.add_argument("--reranker", default=DEFAULT_RERANKER)
     parser.add_argument("-k", type=int, default=5)
+    parser.add_argument("--store", choices=("postgres", "files"), default="postgres",
+                        help="where the chunk vectors are searched (default postgres)")
     args = parser.parse_args()
 
+    from storage.factory import make_searcher  # imported here: storage.factory imports this module
+
     reranker = Reranker(args.reranker) if args.method == "hybrid+rerank" else None
-    searcher = Searcher(load_index(args.doc_id, args.model), Embedder(args.model), reranker)
+    searcher = make_searcher(args.doc_id, args.model, Embedder(args.model), reranker, args.store)
 
     print(f" #  score   page  chunk_id")
     for hit in searcher.search(args.query, args.method, args.k):

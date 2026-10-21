@@ -1,0 +1,22 @@
+# Development database only (stage 7). The full stack is added in stage 11.
+#   docker compose up -d db
+# POSTGRES_PASSWORD has no default on purpose: set it in .env (see .env.example).
+services:
+  db:
+    image: pgvector/pgvector:0.8.7-pg17
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-reportlens}
+      POSTGRES_USER: ${POSTGRES_USER:-reportlens}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (see .env.example)}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"  # reachable from this machine only
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:

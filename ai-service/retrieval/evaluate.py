@@ -14,7 +14,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .embedder import DEFAULT_MODEL, Embedder
-from .index import load_index
+from storage.factory import DEFAULT_STORE, STORES, make_searcher
+
 from .reranker import DEFAULT_RERANKER, Reranker
 from .search import METHODS, Hit, Searcher, snippet
 
@@ -89,6 +90,8 @@ def main() -> None:
     parser.add_argument("--method", choices=METHODS, default="semantic")
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--reranker", default=DEFAULT_RERANKER)
+    parser.add_argument("--store", choices=STORES, default=DEFAULT_STORE,
+                        help="where the chunk vectors are searched (default postgres)")
     args = parser.parse_args()
 
     questions = load_questions(args.questions)
@@ -96,7 +99,7 @@ def main() -> None:
     reranker = TimedReranker(Reranker(args.reranker)) if args.method == "hybrid+rerank" else None
     searchers: dict[str, Searcher] = {}
     for doc_id in {q["doc_id"] for q in questions}:
-        searchers[doc_id] = Searcher(load_index(doc_id, args.model), embedder, reranker)
+        searchers[doc_id] = make_searcher(doc_id, args.model, embedder, reranker, args.store)
 
     # Warm-up query, not measured: the first call pays one-off setup costs.
     first = questions[0]
@@ -111,7 +114,7 @@ def main() -> None:
         results.append(Result(question, hits, time.perf_counter() - start))
 
     label = args.method + (f" ({args.reranker})" if reranker else "")
-    print(f"method: {label}\nembedding model: {args.model}\n")
+    print(f"method: {label}\nembedding model: {args.model}\nstore: {args.store}\n")
     print(f"id   lang  rank  expected        top-5 pages")
     for r in results:
         print(f"{r.question['id']:<4} {r.question['lang']:<5} {r.first_hit_rank or '>20':<5} "

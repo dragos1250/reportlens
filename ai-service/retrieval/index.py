@@ -27,7 +27,7 @@ class IndexPaths:
 @dataclass
 class Index:
     chunks: list[dict]
-    vectors: np.ndarray
+    vectors: np.ndarray | None  # None when the vectors live in the database (storage/pgstore.py)
     model_name: str
 
 

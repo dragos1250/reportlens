@@ -17,6 +17,12 @@ python-dotenv==1.2.4
 fastapi==0.159.1
 uvicorn==0.54.0
 
+# PostgreSQL driver (storage/): connections, COPY for loading
+psycopg[binary]==3.3.6
+
+# pgvector type for psycopg: sends numpy arrays as vector values
+pgvector==0.5.1
+
 # Test runner
 pytest==9.1.1
 

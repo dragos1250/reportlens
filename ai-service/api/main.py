@@ -8,6 +8,7 @@ citations are the same code the CLI uses.
 """
 
 import json
+import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from functools import lru_cache
@@ -84,15 +85,18 @@ def create_app(services: Services) -> FastAPI:
     return app
 
 
-def default_services() -> Services:
-    """Real services: documents from the manifest that have chunks, models loaded on first use."""
+def default_services(store: str | None = None) -> Services:
+    """Real services, models loaded on first use. store: "postgres" (default, or env
+    RETRIEVAL_STORE) reads documents and vectors from the database; "files" from data/processed/."""
     from generation.ask import build_searcher
     from generation.llm import client_from_env
     from retrieval.index import index_paths, load_chunks
     from retrieval.reranker import DEFAULT_RERANKER
+    from storage.factory import DEFAULT_STORE, shared_connection
 
-    @lru_cache(maxsize=1)
-    def documents() -> list[Document]:
+    store = store or os.environ.get("RETRIEVAL_STORE", DEFAULT_STORE)
+
+    def documents_from_files() -> list[Document]:
         result = []
         for report in json.loads(MANIFEST.read_text(encoding="utf-8")):
             chunks_path = index_paths(report["doc_id"], "unused").chunks
@@ -101,9 +105,16 @@ def default_services() -> Services:
                                        chunks=len(load_chunks(chunks_path))))
         return result
 
+    @lru_cache(maxsize=1)
+    def documents() -> list[Document]:
+        if store == "files":
+            return documents_from_files()
+        from storage.pgstore import list_documents
+        return [Document(**d) for d in list_documents(shared_connection())]
+
     @lru_cache(maxsize=None)
     def searcher_for(doc_id: str, method: str) -> Searcher:
-        return build_searcher(doc_id, method, DEFAULT_RERANKER)
+        return build_searcher(doc_id, method, DEFAULT_RERANKER, store)
 
     @lru_cache(maxsize=1)
     def llm() -> LLMClient:

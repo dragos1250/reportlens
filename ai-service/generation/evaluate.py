@@ -21,6 +21,7 @@ from pathlib import Path
 
 from retrieval.reranker import DEFAULT_RERANKER
 from retrieval.search import METHODS, Searcher
+from storage.factory import DEFAULT_STORE, STORES
 
 from .answer import DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_METHOD, Answer, answer_question
 from .ask import build_searcher, format_cost
@@ -162,6 +163,8 @@ def main() -> None:
                         help="search non-English questions with an English translation (off by default)")
     parser.add_argument("--min-score", type=float, default=DEFAULT_MIN_SCORE,
                         help=f"guard threshold (default {DEFAULT_MIN_SCORE}; -1 turns the guard off)")
+    parser.add_argument("--store", choices=STORES, default=DEFAULT_STORE,
+                        help="where the chunk vectors are searched (default postgres)")
     args = parser.parse_args()
 
     questions = [q for path in args.questions for q in load_questions(path)]
@@ -170,14 +173,15 @@ def main() -> None:
 
     def searcher_for(doc_id: str) -> Searcher:
         if doc_id not in searchers:
-            searchers[doc_id] = build_searcher(doc_id, args.method, args.reranker)
+            searchers[doc_id] = build_searcher(doc_id, args.method, args.reranker, args.store)
         return searchers[doc_id]
 
     graded, stopped = run(questions, searcher_for, llm, args.method, args.max_output_tokens, args.max_cost,
                           translate=args.translate_query, min_score=args.min_score)
 
     print(f"model: {llm.model} | retrieval: {args.method} | max_output_tokens: {args.max_output_tokens} "
-          f"| translate query: {'on' if args.translate_query else 'off'} | guard min score: {args.min_score}\n")
+          f"| translate query: {'on' if args.translate_query else 'off'} | guard min score: {args.min_score} "
+          f"| store: {args.store}\n")
     for g in graded:
         a, r = g.answer, g.answer.response
         print(f"=== {g.question['id']} ({g.question['lang']}, {'answerable' if g.answerable else 'NOT answerable'}) "
