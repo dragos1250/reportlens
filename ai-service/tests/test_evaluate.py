@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from retrieval.evaluate import Result, hit_rate_by_lang, load_questions
+from retrieval.evaluate import Result, TimedReranker, hit_rate_by_lang, load_questions
 from retrieval.search import Hit
 
 
@@ -25,7 +25,24 @@ def test_hit_rate_counts_overall_and_per_language():
         result("en", [2], [9]),
         result("ro", [3], [3]),
     ]
-    assert hit_rate_by_lang(results) == {"all": (2, 3), "en": (1, 2), "ro": (1, 1)}
+    assert hit_rate_by_lang(results, k=5) == {"all": (2, 3), "en": (1, 2), "ro": (1, 1)}
+
+
+def test_hit_rate_only_counts_hits_within_k():
+    results = [result("en", [7], [1, 2, 3, 4, 5, 6, 7])]  # expected page at rank 7
+    assert hit_rate_by_lang(results, k=5)["all"] == (0, 1)
+    assert hit_rate_by_lang(results, k=10)["all"] == (1, 1)
+
+
+def test_timed_reranker_records_each_call():
+    class Instant:
+        def rerank(self, query, texts):
+            return [(0, 1.0)]
+
+    timed = TimedReranker(Instant())
+    assert timed.rerank("q", ["t"]) == [(0, 1.0)]
+    timed.rerank("q", ["t"])
+    assert len(timed.seconds) == 2 and all(s >= 0 for s in timed.seconds)
 
 
 def test_load_questions_skips_blank_lines(tmp_path):
