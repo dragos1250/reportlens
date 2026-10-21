@@ -341,7 +341,7 @@ Observations:
   page 85 lists committees, not the Chair's name.
 - Translation stays opt-in; not decided as default.
 
-## Stage 6: "not in the report" guard (in progress)
+## Stage 6: "not in the report" guard
 
 Two layers:
 
@@ -366,5 +366,33 @@ Measured so far (2026-10-22, gpt-6-luna, hybrid, guard 0.75):
 | Cost, 10 questions | $0.000370 |
 | One off-topic probe, "What is a good recipe for pancakes?" | best score 0.776: passed the guard, refused by the LLM (`not_found`) |
 
-Not measured yet: correct refusals on unanswerable questions. The file
-`eval/not_in_report_questions.jsonl` was not in the repository when this ran.
+Full evaluation, 22 questions: the 10 answerable ones plus 12 with no answer in the
+report (`eval/not_in_report_questions.jsonl`, 6 en / 6 ro). Same settings, threshold
+0.75 not changed after seeing the results.
+
+| | Value |
+|---|---|
+| Correct refusals (12 unanswerable) | **12/12**: guard 1 (n12), LLM 11 |
+| Unanswerable questions given an invented answer | **0** |
+| Wrong refusals (10 answerable) | 6/10, all by the LLM after retrieval misses; guard 0 |
+| Best chunk score, unanswerable | min 0.734, median 0.852, max 0.892; below 0.75: 1/12 |
+| Best chunk score, answerable | min 0.832, median 0.869, max 0.898; below 0.75: 0/10 |
+| LLM answer calls | 21 of 22 (n12 refused before the call) |
+| Total cost, 22 questions | $0.002494 |
+| Time per question: median / max | 2.04 s / 3.10 s |
+
+Best chunk score per unanswerable question: n01 0.863, n02 0.836, n03 0.874, n04 0.842,
+n05 0.892, n06 0.866, n07 0.867, n08 0.861, n09 0.843, n10 0.837, n11 0.781 ("What is
+the capital of France?"), n12 0.734 (same question in Romanian, the only guard refusal).
+
+What this shows:
+
+- **The score barely separates the two groups.** Unanswerable questions about the
+  company (bitcoin, Starlink, Brazil, share price) score 0.836-0.892, inside the range of
+  the answerable ones (0.832-0.898). Only fully off-topic questions score low (0.734,
+  0.781). The guard is a cheap filter for off-topic questions; the LLM layer did the rest.
+- **Found a defect:** n02 is in Romanian, but the refusal came back in French ("Les
+  passages fournis du rapport ne précisent pas..."). The prompt asks for "the language
+  of the question" and the model guessed wrong. Not fixed here.
+- With 12 unanswerable questions one question is 8 points; the threshold stays at the
+  model-card-based default until the dev/test split of stage 10.
