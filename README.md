@@ -81,25 +81,65 @@ flowchart LR
 
 ## 🚀 Getting started
 
-> ⚠️ The project is under active development. These steps will be finalised as the pieces land.
+> ⚠️ Local development setup for Windows PowerShell. A one-command Docker Compose setup comes in stage 11.
 
-```bash
-# 1. Clone the repository
-git clone https://github.com/<your-username>/reportlens.git
-cd reportlens
+Requirements: Docker Desktop, Python 3.11, Java 25, Node.js 22. Maven is not needed (`mvnw` downloads it).
 
-# 2. Configure environment variables
-cp .env.example .env
-# add your LLM API key to .env  (never commit this file!)
+**One-time setup**
 
-# 3. Download the public reports used for testing
-python scripts/download_reports.py
+```powershell
+# Configuration: copy the example, then fill in LLM_API_KEY and POSTGRES_PASSWORD (never commit .env)
+Copy-Item .env.example .env
 
-# 4. Start everything
-docker compose up --build
+# Python environment for the AI service
+cd ai-service
+py -3.11 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+
+# Download the public report, split it into passages, embed them
+.\.venv\Scripts\python.exe ..\scripts\download_reports.py
+.\.venv\Scripts\python.exe -m ingestion.ingest ..\dataawodafone-20f-fy26.pdf --doc-id vodafone-20f-fy26
+.\.venv\Scripts\python.exe -m retrieval.build_index --doc-id vodafone-20f-fy26
+
+# Database, then load passages and vectors into it
+cd ..
+docker compose up -d db
+cd ai-service
+.\.venv\Scripts\python.exe -m storage.load --doc-id vodafone-20f-fy26
+cd ..
 ```
 
-Then open **http://localhost:3000** 🎉
+**Run** (one terminal per service, from the repository root)
+
+```powershell
+# Terminal 1: AI service on http://127.0.0.1:8000
+cd ai-service
+.\.venv\Scripts\python.exe -m uvicorn api.main:app --port 8000
+```
+
+```powershell
+# Terminal 2: backend on http://127.0.0.1:8080 (reads the database password from .env into this terminal only)
+cd backend
+$env:POSTGRES_PASSWORD = ((Get-Content ..\.env) -match '^POSTGRES_PASSWORD=') -replace '^POSTGRES_PASSWORD=', ''
+.\mvnw.cmd spring-boot:run
+```
+
+```powershell
+# Terminal 3: frontend on http://127.0.0.1:5173 (proxies /api to the backend)
+cd frontend
+npm install
+npm run dev
+```
+
+Then open **http://127.0.0.1:5173**.
+
+**Tests**
+
+```powershell
+cd ai-service; .\.venv\Scripts\python.exe -m pytest -q; cd ..
+cd backend; .\mvnw.cmd test; cd ..
+cd frontend; npm test; cd ..
+```
 
 ## 📏 Evaluation
 
@@ -120,7 +160,7 @@ Quality is measured, not assumed. A hand-written test set of questions with expe
 - [x] 🔎 Hybrid search and re-ranking
 - [x] 🚫 "Not in the report" guardrail
 - [x] ☕ Spring Boot API and database
-- [ ] ⚛️ React UI with PDF viewer and highlighted citations
+- [x] ⚛️ React UI with PDF viewer and highlighted citations
 - [ ] 🖍️ Select & explain
 - [ ] 🆚 Compare two reports
 - [ ] 📏 Evaluation page and test set

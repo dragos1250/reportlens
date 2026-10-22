@@ -14,8 +14,8 @@ stored in PostgreSQL (schema `app`, Flyway). Answers come from the AI service (F
 versioned file. Spring Boot does not read `.env`, so pass the variable to the process:
 
 ```powershell
-# PowerShell: typed, masked, kept only in this terminal session
-$env:POSTGRES_PASSWORD = Read-Host -MaskInput "Postgres password"
+# Windows PowerShell 5.1: copy only this one variable from .env into this terminal session
+$env:POSTGRES_PASSWORD = ((Get-Content ..\.env) -match '^POSTGRES_PASSWORD=') -replace '^POSTGRES_PASSWORD=', ''
 .\mvnw.cmd spring-boot:run
 ```
 
