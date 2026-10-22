@@ -1,5 +1,8 @@
 package dev.reportlens.backend.api;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.AssertTrue;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -21,9 +24,23 @@ public final class ApiDtos {
     public record StartConversation(@NotBlank @Size(max = 200) String docId, @Size(max = 200) String title) {
     }
 
-    public record AskQuestion(@NotBlank @Size(max = 1000) String question,
+    /** The reader's selection; longer than the AI service's limit so a long one gets a calm answer. */
+    public record SelectionDto(@Min(1) int page, @NotBlank @Size(max = 20000) String text) {
+    }
+
+    /**
+     * A question, a selection ("Explain this"), or both ("Ask about this"). At least one of
+     * question and selection is required.
+     */
+    public record AskQuestion(@Size(max = 1000) String question,
                               @Pattern(regexp = "^[a-z]{2}$", message = "must be a two-letter code, e.g. ro")
-                              String lang) {
+                              String lang,
+                              @Valid SelectionDto selection) {
+
+        @AssertTrue(message = "a question or a selection is required")
+        public boolean isQuestionOrSelection() {
+            return selection != null || (question != null && !question.isBlank());
+        }
     }
 
     public record ConversationDto(UUID id, String docId, String title, OffsetDateTime createdAt) {
@@ -41,6 +58,6 @@ public final class ApiDtos {
      */
     public record MessageDto(Long id, String role, String content, String lang, String status,
                              List<CitationDto> citations, List<PassageDto> passages, BigDecimal costUsd,
-                             String model, OffsetDateTime createdAt) {
+                             String model, SelectionDto selection, OffsetDateTime createdAt) {
     }
 }

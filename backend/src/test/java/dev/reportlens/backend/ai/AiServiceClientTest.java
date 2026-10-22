@@ -68,6 +68,30 @@ class AiServiceClientTest {
     }
 
     @Test
+    void explainSendsTheSelectionAsSnakeCaseJsonAndReadsTheStatus() {
+        server.expect(requestTo("http://ai.test/explain"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(content().json("""
+                        {"doc_id": "vodafone-20f-fy26", "page": 25, "text": "undrawn committed facilities of €7.6 billion",
+                         "question": null, "lang": "ro"}
+                        """))
+                .andRespond(withSuccess("""
+                        {"status": "explained", "answer": "Linii de credit nefolosite.", "page": 25,
+                         "quote": "undrawn committed facilities of €7.6 billion", "problems": [],
+                         "model": "gpt-6-luna", "usage": {"input_tokens": 400, "output_tokens": 60, "reasoning_tokens": 0},
+                         "cost_usd": 0.00007, "llm_seconds": 1.8}
+                        """, MediaType.APPLICATION_JSON));
+
+        AiDtos.ExplainResponse response = client.explain(new AiDtos.ExplainRequest(
+                "vodafone-20f-fy26", 25, "undrawn committed facilities of €7.6 billion", null, "ro"));
+
+        assertThat(response.status()).isEqualTo("explained");
+        assertThat(response.page()).isEqualTo(25);
+        assertThat(response.costUsd()).isEqualTo(0.00007);
+        server.verify();
+    }
+
+    @Test
     void documentsAreRead() {
         server.expect(requestTo("http://ai.test/documents"))
                 .andRespond(withSuccess("""

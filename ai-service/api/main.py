@@ -18,10 +18,12 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 
 from generation.answer import Answer, answer_question
+from generation.explain import explain_selection
 from generation.llm import LLMClient
 from retrieval.search import Searcher
 
-from .schemas import AskRequest, AskResponse, Citation, Document, Health, Passage, Timings, Usage
+from .schemas import (AskRequest, AskResponse, Citation, Document, ExplainRequest, ExplainResponse, Health,
+                      Passage, Timings, Usage)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = REPO_ROOT / "scripts" / "reports.json"
@@ -85,6 +87,24 @@ def create_app(services: Services) -> FastAPI:
             raise HTTPException(status_code=404, detail=f"no PDF on disk for {doc_id!r}")
         return FileResponse(path, media_type="application/pdf", filename=f"{doc_id}.pdf",
                             content_disposition_type="inline")
+
+    @app.post("/explain")
+    def explain(request: ExplainRequest) -> ExplainResponse:
+        """Explain a selection (or answer a question about it) from that text only: no search."""
+        if request.doc_id not in {d.doc_id for d in services.documents()}:
+            raise HTTPException(status_code=404, detail=f"unknown doc_id {request.doc_id!r}")
+        try:
+            result = explain_selection(request.text, request.page, services.llm(), request.question, request.lang)
+        except Exception as error:  # provider/network errors; never echo request details or keys
+            raise HTTPException(status_code=502, detail=f"explanation failed: {type(error).__name__}")
+        r = result.response
+        return ExplainResponse(
+            status=result.status, answer=result.text, page=result.page, quote=result.quote,
+            problems=result.problems, model=r.model if r else None,
+            usage=Usage(input_tokens=r.input_tokens, output_tokens=r.output_tokens,
+                        reasoning_tokens=r.reasoning_tokens) if r else None,
+            cost_usd=result.cost_usd, llm_seconds=round(result.llm_seconds, 3),
+        )
 
     @app.post("/ask")
     def ask(request: AskRequest) -> AskResponse:

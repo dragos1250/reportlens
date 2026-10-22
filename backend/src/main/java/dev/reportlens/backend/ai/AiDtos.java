@@ -16,6 +16,16 @@ public final class AiDtos {
     public record AskRequest(String question, @JsonProperty("doc_id") String docId, String lang) {
     }
 
+    /** Select & explain: only the selected text is sent, no search. */
+    public record ExplainRequest(@JsonProperty("doc_id") String docId, int page, String text, String question,
+                                 String lang) {
+    }
+
+    /** status: explained | not_enough | too_short | too_long | no_text | incomplete | invalid_output. */
+    public record ExplainResponse(String status, String answer, int page, String quote, String model,
+                                  @JsonProperty("cost_usd") Double costUsd) {
+    }
+
     public record Citation(String marker, @JsonProperty("doc_id") String docId, int page,
                            @JsonProperty("chunk_id") String chunkId) {
     }

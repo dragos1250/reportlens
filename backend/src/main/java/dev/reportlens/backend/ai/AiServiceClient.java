@@ -153,6 +153,15 @@ public class AiServiceClient {
         return headers;
     }
 
+    public AiDtos.ExplainResponse explain(AiDtos.ExplainRequest request) {
+        try {
+            return http.post().uri("/explain").contentType(MediaType.APPLICATION_JSON).body(request)
+                    .retrieve().body(AiDtos.ExplainResponse.class);
+        } catch (RestClientException e) {
+            throw new AiServiceException("could not get an explanation", e);
+        }
+    }
+
     public AiDtos.AskResponse ask(AiDtos.AskRequest request) {
         try {
             return http.post().uri("/ask").contentType(MediaType.APPLICATION_JSON).body(request)

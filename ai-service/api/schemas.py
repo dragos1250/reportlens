@@ -70,3 +70,29 @@ class Document(BaseModel):
 
 class Health(BaseModel):
     status: Literal["ok"]
+
+
+class ExplainRequest(BaseModel):
+    """Select & explain: the reader's selection on one page; with a question for "Ask about this"."""
+
+    doc_id: str = Field(min_length=1, max_length=200)
+    page: int = Field(ge=1)
+    # Longer than the guard's limit on purpose: a long selection gets a calm "too_long"
+    # answer from the guard instead of a validation error.
+    text: str = Field(min_length=1, max_length=20000)
+    question: str | None = Field(default=None, max_length=1000)
+    lang: str | None = Field(default=None, pattern=r"^[a-z]{2}$")
+
+
+class ExplainResponse(BaseModel):
+    # explained | not_enough (model) | too_short | too_long | no_text (guard, no LLM call)
+    # | incomplete | invalid_output
+    status: str
+    answer: str
+    page: int
+    quote: str  # the selection as explained (whitespace normalised)
+    problems: list[str]
+    model: str | None
+    usage: Usage | None
+    cost_usd: float | None
+    llm_seconds: float

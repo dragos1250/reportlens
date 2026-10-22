@@ -157,6 +157,81 @@ class ApiIntegrationTest {
         mvc.perform(get("/api/documents/nope/pdf")).andExpect(status().isNotFound());
     }
 
+    private static final String SELECTED = "undrawn committed facilities of €7.6 billion (2025: €8.0 billion)";
+
+    @Test
+    void explainThisSendsOnlyTheSelectionAndStoresItOnBothMessages() throws Exception {
+        when(ai.explain(new AiDtos.ExplainRequest(DOC, 25, SELECTED, null, "ro"))).thenReturn(new AiDtos.ExplainResponse(
+                "explained", "Linii de credit angajate, dar nefolosite.", 25, SELECTED, "gpt-6-luna", 0.00007));
+        String id = startConversation();
+
+        mvc.perform(post("/api/conversations/" + id + "/messages").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"lang\": \"ro\", \"selection\": {\"page\": 25, \"text\": \"" + SELECTED + "\"}}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("explained"))
+                .andExpect(jsonPath("$.content").value("Linii de credit angajate, dar nefolosite."))
+                .andExpect(jsonPath("$.selection.page").value(25))
+                .andExpect(jsonPath("$.selection.text").value(SELECTED))
+                .andExpect(jsonPath("$.citations").isEmpty());
+        verify(ai, never()).ask(any());
+
+        mvc.perform(get("/api/conversations/" + id + "/messages"))
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].role").value("user"))
+                .andExpect(jsonPath("$[0].content").value("Explain this"))
+                .andExpect(jsonPath("$[0].selection.page").value(25))
+                .andExpect(jsonPath("$[1].selection.text").value(SELECTED));
+    }
+
+    @Test
+    void askAboutThisSendsTheQuestionWithTheSelection() throws Exception {
+        when(ai.explain(new AiDtos.ExplainRequest(DOC, 25, SELECTED, "How much is undrawn?", null)))
+                .thenReturn(new AiDtos.ExplainResponse("explained", "€7.6 billion.", 25, SELECTED, "gpt-6-luna", 0.00005));
+        String id = startConversation();
+
+        mvc.perform(post("/api/conversations/" + id + "/messages").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"question\": \"How much is undrawn?\", \"selection\": {\"page\": 25, \"text\": \""
+                                + SELECTED + "\"}}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.content").value("€7.6 billion."));
+
+        mvc.perform(get("/api/conversations/" + id + "/messages"))
+                .andExpect(jsonPath("$[0].content").value("How much is undrawn?"))
+                .andExpect(jsonPath("$[0].selection.page").value(25));
+    }
+
+    @Test
+    void aGuardRefusalIsStoredAsACalmAnswer() throws Exception {
+        when(ai.explain(any())).thenReturn(new AiDtos.ExplainResponse(
+                "too_short", "Select at least a sentence to explain.", 3, "Revenue", null, 0.0));
+        String id = startConversation();
+
+        mvc.perform(post("/api/conversations/" + id + "/messages").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"selection\": {\"page\": 3, \"text\": \"Revenue\"}}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("too_short"))
+                .andExpect(jsonPath("$.model").doesNotExist());
+    }
+
+    @Test
+    void questionOrSelectionIsRequiredAndTheSelectionIsValidated() throws Exception {
+        String id = startConversation();
+        mvc.perform(post("/api/conversations/" + id + "/messages").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"lang\": \"ro\"}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post("/api/conversations/" + id + "/messages").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"question\": \"   \"}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post("/api/conversations/" + id + "/messages").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"selection\": {\"page\": 0, \"text\": \"some selected text here\"}}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post("/api/conversations/" + id + "/messages").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"selection\": {\"page\": 3, \"text\": \"\"}}"))
+                .andExpect(status().isBadRequest());
+        verify(ai, never()).explain(any());
+        verify(ai, never()).ask(any());
+    }
+
     @Test
     void unknownDocumentOrConversationIs404() throws Exception {
         mvc.perform(post("/api/conversations").contentType(MediaType.APPLICATION_JSON)

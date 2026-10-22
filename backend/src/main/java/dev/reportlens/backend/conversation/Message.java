@@ -54,6 +54,12 @@ public class Message {
 
     private String model;
 
+    @Column(name = "selection_page")
+    private Integer selectionPage;
+
+    @Column(name = "selection_text")
+    private String selectionText;
+
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
 
@@ -82,6 +88,19 @@ public class Message {
         message.costUsd = costUsd;
         message.model = model;
         return message;
+    }
+
+    /** Marks this message as part of a Select & explain turn. */
+    public Message withSelection(Selection selection) {
+        if (selection != null) {
+            this.selectionPage = selection.page();
+            this.selectionText = selection.text();
+        }
+        return this;
+    }
+
+    public Selection getSelection() {
+        return selectionPage == null ? null : new Selection(selectionPage, selectionText);
     }
 
     public Long getId() {

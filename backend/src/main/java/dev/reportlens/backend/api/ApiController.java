@@ -6,10 +6,12 @@ import dev.reportlens.backend.api.ApiDtos.ConversationDto;
 import dev.reportlens.backend.api.ApiDtos.DocumentDto;
 import dev.reportlens.backend.api.ApiDtos.MessageDto;
 import dev.reportlens.backend.api.ApiDtos.PassageDto;
+import dev.reportlens.backend.api.ApiDtos.SelectionDto;
 import dev.reportlens.backend.api.ApiDtos.StartConversation;
 import dev.reportlens.backend.conversation.Conversation;
 import dev.reportlens.backend.conversation.ConversationService;
 import dev.reportlens.backend.conversation.Message;
+import dev.reportlens.backend.conversation.Selection;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
@@ -76,7 +78,9 @@ public class ApiController {
     /** Asks a question in a conversation; returns the assistant's answer (201). */
     @PostMapping("/conversations/{id}/messages")
     public ResponseEntity<MessageDto> ask(@PathVariable UUID id, @Valid @RequestBody AskQuestion request) {
-        Message answer = service.ask(id, request.question(), request.lang());
+        Selection selection = request.selection() == null ? null
+                : new Selection(request.selection().page(), request.selection().text());
+        Message answer = service.ask(id, request.question(), request.lang(), selection);
         return ResponseEntity.created(URI.create("/api/conversations/" + id + "/messages")).body(toDto(answer));
     }
 
@@ -89,7 +93,9 @@ public class ApiController {
                 .map(c -> new CitationDto(c.marker(), c.docId(), c.page(), c.chunkId())).toList();
         List<PassageDto> passages = service.passages(m).stream()
                 .map(p -> new PassageDto(p.marker(), p.docId(), p.page(), p.chunkId(), p.text(), p.cited())).toList();
+        Selection s = m.getSelection();
         return new MessageDto(m.getId(), m.getRole(), m.getContent(), m.getLang(), m.getStatus(), citations,
-                passages, m.getCostUsd(), m.getModel(), m.getCreatedAt());
+                passages, m.getCostUsd(), m.getModel(), s == null ? null : new SelectionDto(s.page(), s.text()),
+                m.getCreatedAt());
     }
 }
