@@ -22,16 +22,15 @@ function premiumVoiceOn() {
 }
 
 describe("Voice: Browser / ElevenLabs", () => {
-  it("is offered on a built-in report when the server has the premium voice, and remembered", async () => {
+  it("defaults to ElevenLabs on a built-in report when the server has it, and remembers a switch to Browser", async () => {
     premiumVoiceOn()
     const { unmount } = render(<Workspace document={DOCUMENT} onClose={vi.fn()} />)
-    const elevenLabs = await screen.findByRole("radio", { name: "ElevenLabs voice" })
-    expect(screen.getByRole("radio", { name: "Browser voice (free, on this device)" })).toBeChecked()
-    await userEvent.click(elevenLabs)
+    expect(await screen.findByRole("radio", { name: "ElevenLabs voice" })).toBeChecked()
+    await userEvent.click(screen.getByRole("radio", { name: "Browser voice (free, on this device)" }))
     unmount()
 
     render(<Workspace document={DOCUMENT} onClose={vi.fn()} />)
-    expect(await screen.findByRole("radio", { name: "ElevenLabs voice" })).toBeChecked()
+    expect(await screen.findByRole("radio", { name: "Browser voice (free, on this device)" })).toBeChecked()
   })
 
   it("is not offered without the premium voice on the server", async () => {

@@ -33,11 +33,15 @@ interface Props {
 
 const VOICE_KEY = "reportlens.voice"
 
+/**
+ * ElevenLabs by default when the server offers it (premiumVoice); the browser voice when the
+ * reader chose it, and always without a key, for uploaded reports and past a spending limit.
+ */
 function readVoice(): VoiceProvider {
   try {
-    return window.localStorage.getItem(VOICE_KEY) === "elevenlabs" ? "elevenlabs" : "browser"
+    return window.localStorage.getItem(VOICE_KEY) === "browser" ? "browser" : "elevenlabs"
   } catch {
-    return "browser"
+    return "elevenlabs"
   }
 }
 

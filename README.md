@@ -38,7 +38,7 @@ It is built as a **Retrieval-Augmented Generation (RAG)** system, so the assista
 - 🆚 **Compare two reports**: each report is searched on its own, every figure cites its report and page, and the assistant says when the financial years differ
 - 🌍 **Ask in Romanian or English**: multilingual embeddings, documents in English
 - 📤 **Upload your own PDF** (when the server allows it): ingested in the background with visible progress, then searchable, citable and comparable with another report
-- 🔊 **Voice** (optional): ask by voice (Romanian or English) and have answers read aloud, by the browser's voice (free, default) or ElevenLabs (if the server has a key); see [Voice](#-voice)
+- 🔊 **Voice** (optional): ask by voice (Romanian or English) and have answers read aloud, by the browser's voice or ElevenLabs (the default when the server has a key); see [Voice](#-voice)
 - 📊 **Evaluation** (in progress): a hand-written test set with expected pages; results so far are in [Evaluation](#-evaluation)
 
 ## 🎬 Demo
@@ -142,7 +142,10 @@ documents.
   Alt+M starts and stops, Esc stops.
 - **Reading answers aloud** reads the first whole sentences (up to 400 characters, without the
   citation markers; the citations stay on screen), in the language of the answer.
-  - The **browser voice** is the free default; nothing leaves the device. If no voice is installed
+  - **ElevenLabs is the default when the server has a key** (see below); the reader can switch to
+    the browser voice, and the choice is remembered.
+  - The **browser voice** is free and nothing leaves the device; it is used without a key, for
+    uploaded reports and past a spending limit. If no voice is installed
     for the answer's language (often Romanian on Windows), the app says so instead of reading
     with another voice.
   - **ElevenLabs** (model `eleven_flash_v2_5`, which supports Romanian) works only when the server
