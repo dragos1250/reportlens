@@ -38,6 +38,7 @@ It is built as a **Retrieval-Augmented Generation (RAG)** system, so the assista
 - 🆚 **Compare two reports**: each report is searched on its own, every figure cites its report and page, and the assistant says when the financial years differ
 - 🌍 **Ask in Romanian or English**: multilingual embeddings, documents in English
 - 📤 **Upload your own PDF** (when the server allows it): ingested in the background with visible progress, then searchable, citable and comparable with another report
+- 🔊 **Voice** (optional): ask by voice (Romanian or English) and have answers read aloud, by the browser's voice (free, default) or ElevenLabs (if the server has a key); see [Voice](#-voice)
 - 📊 **Evaluation** (in progress): a hand-written test set with expected pages; results so far are in [Evaluation](#-evaluation)
 
 ## 🎬 Demo
@@ -132,6 +133,25 @@ the page count is checked before any text is read. Ingestion is local: no LLM ca
 CPU, one upload at a time, so **answers can be slower while a report is being ingested**.
 Uploaded reports are not listed; anyone with the link can open one, so do not upload confidential
 documents.
+
+### 🔊 Voice
+
+- **Asking by voice** uses the browser's speech recognition (Chrome, Edge; not Firefox), in
+  Romanian or English (switch next to the Mic button). **Chrome sends the audio to Google to
+  transcribe it.** The words go into the question field and are never sent on their own.
+  Alt+M starts and stops, Esc stops.
+- **Reading answers aloud** reads the first whole sentences (up to 400 characters, without the
+  citation markers; the citations stay on screen), in the language of the answer.
+  - The **browser voice** is the free default; nothing leaves the device. If no voice is installed
+    for the answer's language (often Romanian on Windows), the app says so instead of reading
+    with another voice.
+  - **ElevenLabs** (model `eleven_flash_v2_5`, which supports Romanian) works only when the server
+    has `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID`. The backend reads the answer it wrote,
+    by its id, and sends ElevenLabs only the text to read. Before any paid call: 5 requests a minute
+    per IP, 2,000 characters a day per IP, 20,000 a day overall and a monthly cap (8,000 by default,
+    under the free plan); past a limit the browser voice reads instead, with the reason shown.
+    Audio already made is replayed from memory (last 50 answers) without paying again.
+  - **Uploaded reports are read with the browser voice only**: their text never goes to ElevenLabs.
 
 ### 🛠️ Development without Docker (Windows PowerShell)
 
@@ -236,6 +256,7 @@ English text.
 - [ ] 🖼️ Screenshots in this README
 - [ ] 📏 Evaluation page and full test set, plus a check that the PDF viewer renders in a real browser (in progress: the evaluation tooling and the 29-question dev set are done; the sealed test set and its one-time measurement follow)
 - [ ] 📤 Upload a PDF, ingest it in the background with progress, compare two uploaded reports
+- [ ] 🔊 Voice: ask by voice, answers read aloud (implemented; awaiting a browser check)
 - [ ] 🌐 Public demo (only with the protections above, after the evaluation)
 
 ## 📂 Project structure

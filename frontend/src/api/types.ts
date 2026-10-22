@@ -36,6 +36,8 @@ export interface DocumentInfo {
 export interface ServerConfig {
   uploadsEnabled: boolean
   maxUploadMb: number
+  /** ElevenLabs is configured on the server; the browser voice works anyway. */
+  premiumVoice?: boolean
 }
 
 export type UploadState = "queued" | "reading" | "indexing" | "ready" | "failed"
@@ -102,4 +104,7 @@ export interface Message {
   /** Set on both messages of a Select & explain turn. */
   selection: Selection | null
   createdAt: string
+  /** Answers only: what "Read aloud" reads (no [P#] markers), and its language, resolved on the server. */
+  spokenText?: string | null
+  spokenLang?: "ro" | "en" | null
 }

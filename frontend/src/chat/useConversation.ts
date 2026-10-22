@@ -16,7 +16,7 @@ interface TurnBase {
 
 export type Turn =
   | (TurnBase & { state: "loading" })
-  | (TurnBase & { state: "done"; answer: Message })
+  | (TurnBase & { state: "done"; answer: Message; conversationId: string })
   | (TurnBase & { state: "error"; error: string })
 
 /**
@@ -50,8 +50,9 @@ export function useConversation(docId: string, compareDocId: string | null = nul
     update({ ...base, state: "loading" })
     try {
       conversationId.current ??= api.startConversation(docId, compareDocId).then((c) => c.id)
-      const answer = await api.ask(await conversationId.current, base.question, base.lang, base.selection)
-      update({ ...base, state: "done", answer })
+      const id = await conversationId.current
+      const answer = await api.ask(id, base.question, base.lang, base.selection)
+      update({ ...base, state: "done", answer, conversationId: id })
     } catch (error) {
       if (generation.current === started) conversationId.current = null // a failed start must not stick
       update({ ...base, state: "error", error: error instanceof Error ? error.message : "Something went wrong. Retry." })

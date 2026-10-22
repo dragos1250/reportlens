@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from "react"
 
 import { api } from "../api/client"
-import type { DocumentInfo, ServerConfig, UploadAccepted } from "../api/types"
+import type { DocumentInfo, UploadAccepted } from "../api/types"
 import { Brand } from "../components/BrandMark"
 import { forgetUpload, readUploads } from "../lib/myUploads"
+import { useServerConfig } from "../lib/useServerConfig"
 import { PageStack } from "./PageStack"
 import { UploadPanel } from "./UploadPanel"
 
@@ -38,25 +39,12 @@ function useMyUploads(): [DocumentInfo[], (docId: string) => void] {
   return [mine, remove]
 }
 
-/** Whether this server accepts uploads; off if the answer cannot be read. */
-function useConfig(): ServerConfig | null {
-  const [config, setConfig] = useState<ServerConfig | null>(null)
-  useEffect(() => {
-    let cancelled = false
-    api.config().then((c) => { if (!cancelled) setConfig(c) }, () => { if (!cancelled) setConfig(null) })
-    return () => {
-      cancelled = true
-    }
-  }, [])
-  return config
-}
-
 /** First screen: upload a report (if this server allows it) or choose one already indexed. */
 export function DocumentPicker({ onOpen, onUploaded = () => {} }: {
   onOpen: (document: DocumentInfo) => void
   onUploaded?: (upload: UploadAccepted) => void
 }) {
-  const config = useConfig()
+  const config = useServerConfig() // uploads are off if it cannot be read
   const [mine, removeMine] = useMyUploads()
   const [load, setLoad] = useState<Load>({ state: "loading" })
   const [attempt, setAttempt] = useState(0) // Retry bumps it, which reruns the effect

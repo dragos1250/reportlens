@@ -1,7 +1,8 @@
-import type { FormEvent, KeyboardEvent, RefObject } from "react"
+import { type FormEvent, type KeyboardEvent, type RefObject, useRef } from "react"
 
 import type { Lang, Selection } from "../api/types"
 import { Icon } from "../components/Icon"
+import { MicButton } from "../voice/MicButton"
 
 const LANGS: { value: Lang; label: string; name: string }[] = [
   { value: "auto", label: "Auto", name: "Same as the question" },
@@ -25,6 +26,16 @@ interface Props {
 export function Composer({ draft, lang, busy, textareaRef, pendingSelection = null, onClearSelection, onDraft, onLang,
   onSubmit }: Props) {
   const canAsk = draft.trim().length > 0 && !busy
+  const latest = useRef(draft)
+  latest.current = draft
+
+  /** Recognised speech goes into the field, after what is already typed; it is never sent on its own. */
+  function appendSpoken(text: string) {
+    if (!text) return
+    const before = latest.current.trimEnd()
+    onDraft(before ? `${before} ${text}` : text)
+    textareaRef.current?.focus()
+  }
 
   function submit(event: FormEvent) {
     event.preventDefault()
@@ -67,6 +78,9 @@ export function Composer({ draft, lang, busy, textareaRef, pendingSelection = nu
         placeholder={pendingSelection ? "Ask about the selected text…" : "Ask about this report…"}
         className="w-full resize-none border-0 bg-transparent text-sm leading-normal text-text placeholder:text-secondary focus-visible:outline-none"
       />
+      <div className="mb-2">
+        <MicButton onText={appendSpoken} />
+      </div>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <fieldset className="m-0 flex items-center gap-1 border-0 p-0">
           <legend className="sr-only">Answer language</legend>

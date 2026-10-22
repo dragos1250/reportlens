@@ -102,6 +102,30 @@ export const api = {
     if (!response.ok && response.status !== 404) throw new ApiError(response.status, describe(response.status, undefined))
   },
 
+  /**
+   * An answer read by the premium voice (MP3). The server reads the answer it wrote, by id:
+   * no text is sent from here. Refusals (limits, uploaded report, service down) keep their reason.
+   */
+  speech: async (conversationId: string, messageId: number): Promise<Blob> => {
+    const path = `/conversations/${encodeURIComponent(conversationId)}/messages/${messageId}/speech`
+    let response: Response
+    try {
+      response = await fetch(url(path), { method: "POST", headers: { Accept: "audio/mpeg" } })
+    } catch {
+      throw new ApiError(0, "Could not reach the server.")
+    }
+    if (!response.ok) {
+      let detail: string | undefined
+      try {
+        detail = ((await response.json()) as { detail?: string }).detail
+      } catch {
+        detail = undefined
+      }
+      throw new ApiError(response.status, detail ?? "The premium voice is not available right now.")
+    }
+    return response.blob()
+  },
+
   /** Streamed by the backend with range support; pdf.js loads it in parts. */
   pdfUrl: (docId: string) => url(`/documents/${encodeURIComponent(docId)}/pdf`),
 }

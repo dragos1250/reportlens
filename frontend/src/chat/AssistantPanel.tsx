@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react"
 import type { DocumentInfo, Lang, Message, Passage, Selection } from "../api/types"
 import { Icon } from "../components/Icon"
 import { type DocLabel, docLabels } from "../lib/reports"
+import { ReadAloud, type VoiceProvider } from "../voice/ReadAloud"
 import { AnswerText, Sources } from "./Answer"
 import { Composer } from "./Composer"
 import { NotInReport } from "./NotInReport"
@@ -26,14 +27,38 @@ interface Props {
   onSearchReport: (question: string) => void
   /** The two reports when the conversation compares them; absent for a single report. */
   comparing?: DocumentInfo[] | null
+  /** The premium voice may read this conversation: configured on the server and no uploaded report. */
+  premiumVoice?: boolean
+}
+
+const VOICE_KEY = "reportlens.voice"
+
+function readVoice(): VoiceProvider {
+  try {
+    return window.localStorage.getItem(VOICE_KEY) === "elevenlabs" ? "elevenlabs" : "browser"
+  } catch {
+    return "browser"
+  }
 }
 
 const EXPLAIN_REFUSALS = new Set(["not_enough", "too_short", "too_long", "no_text"])
 
 export function AssistantPanel({
   turns, busy, activeChunkId, lang, onLang, pendingSelection, onClearSelection, onAsk, onRetry, onCite,
-  onShowSelection, onSearchReport, comparing = null,
+  onShowSelection, onSearchReport, comparing = null, premiumVoice = false,
 }: Props) {
+  const [voice, setVoice] = useState<VoiceProvider>(readVoice)
+  const provider: VoiceProvider = premiumVoice ? voice : "browser"
+
+  function chooseVoice(next: VoiceProvider) {
+    setVoice(next)
+    try {
+      window.localStorage.setItem(VOICE_KEY, next)
+    } catch {
+      // not kept; applies until reload
+    }
+  }
+
   const docLabel = comparing ? docLabels(comparing) : undefined
   const [draft, setDraft] = useState("")
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -71,10 +96,26 @@ export function AssistantPanel({
           </span>
           Report assistant
         </span>
-        <span className="flex items-center gap-1.5 text-xs font-medium text-secondary">
-          <span aria-hidden="true" className="size-1.5 rounded-full bg-teal" />
-          Grounded in report
-        </span>
+        {premiumVoice ? (
+          <fieldset className="m-0 flex items-center gap-1 border-0 p-0 text-xs font-normal">
+            <legend className="sr-only">Voice for reading answers</legend>
+            <span aria-hidden="true" className="mr-1 text-secondary">Voice</span>
+            {(["browser", "elevenlabs"] as const).map((option) => (
+              <label key={option}
+                     className="grid min-h-11 cursor-pointer place-items-center rounded-md px-1.5 text-secondary has-checked:bg-line has-checked:text-text md:min-h-8">
+                <input type="radio" name="voice" value={option} checked={voice === option}
+                       onChange={() => chooseVoice(option)} className="sr-only"
+                       aria-label={option === "browser" ? "Browser voice (free, on this device)" : "ElevenLabs voice"} />
+                {option === "browser" ? "Browser" : "ElevenLabs"}
+              </label>
+            ))}
+          </fieldset>
+        ) : (
+          <span className="flex items-center gap-1.5 text-xs font-medium text-secondary">
+            <span aria-hidden="true" className="size-1.5 rounded-full bg-teal" />
+            Grounded in report
+          </span>
+        )}
       </div>
 
       <div className="min-h-0 overflow-y-auto px-5 pt-5 pb-8" aria-live="polite">
@@ -102,7 +143,7 @@ export function AssistantPanel({
               </>
             )}
             <TurnBody turn={turn} isLast={turn === lastDone} activeChunkId={activeChunkId} comparing={comparing}
-                      docLabel={docLabel}
+                      docLabel={docLabel} voice={provider}
                       onCite={onCite} onRetry={onRetry} onRephrase={() => rephrase(turn.question ?? "")}
                       onSearchReport={() => onSearchReport(turn.question ?? "")} />
           </article>
@@ -141,12 +182,13 @@ function SelectionQuote({ selection, onShow, docLabel }: {
   )
 }
 
-function TurnBody({ turn, isLast, activeChunkId, comparing, docLabel, onCite, onRetry, onRephrase, onSearchReport }: {
+function TurnBody({ turn, isLast, activeChunkId, comparing, docLabel, voice, onCite, onRetry, onRephrase, onSearchReport }: {
   turn: Turn
   isLast: boolean
   activeChunkId: string | null
   comparing: DocumentInfo[] | null
   docLabel?: DocLabel
+  voice: VoiceProvider
   onCite: (passage: Passage) => void
   onRetry: (turn: Turn) => void
   onRephrase: () => void
@@ -164,7 +206,8 @@ function TurnBody({ turn, isLast, activeChunkId, comparing, docLabel, onCite, on
   }
 
   const message = turn.answer
-  if (message.status === "explained") return <Explanation message={message} />
+  const readAloud = <ReadAloud message={message} conversationId={turn.conversationId} provider={voice} />
+  if (message.status === "explained") return <><Explanation message={message} />{readAloud}</>
   if (message.status && EXPLAIN_REFUSALS.has(message.status)) return <CannotExplain message={message} />
   if (message.status === "not_found" || message.status === "not_in_report") {
     return <NotInReport message={message} onPage={onCite} onRephrase={onRephrase} onSearchReport={onSearchReport}
@@ -181,6 +224,7 @@ function TurnBody({ turn, isLast, activeChunkId, comparing, docLabel, onCite, on
         <PartialNote message={message} comparing={comparing} docLabel={docLabel} />
       )}
       <AnswerText message={message} activeChunkId={activeChunkId} onCite={onCite} docLabel={docLabel} />
+      {readAloud}
       <ModelLine message={message} />
       {isLast && <Sources message={message} activeChunkId={activeChunkId} onCite={onCite} docLabel={docLabel} />}
     </>

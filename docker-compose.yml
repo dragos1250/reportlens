@@ -85,6 +85,16 @@ services:
       UPLOADS_ENABLED: ${UPLOADS_ENABLED:-false}
       UPLOAD_MAX_MB: ${UPLOAD_MAX_MB:-50}
       UPLOADS_PER_HOUR: ${UPLOADS_PER_HOUR:-3}
+      # Spoken answers with ElevenLabs: off without a key and a voice id. The key reaches
+      # this container only (never the AI service, never the browser).
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+      ELEVENLABS_VOICE_ID: ${ELEVENLABS_VOICE_ID:-}
+      ELEVENLABS_MODEL: ${ELEVENLABS_MODEL:-eleven_flash_v2_5}
+      ELEVENLABS_MONTHLY_CHARS: ${ELEVENLABS_MONTHLY_CHARS:-8000}
+      SPEECH_MAX_CHARS: ${SPEECH_MAX_CHARS:-400}
+      SPEECH_PER_MINUTE: ${SPEECH_PER_MINUTE:-5}
+      SPEECH_PER_IP_DAILY_CHARS: ${SPEECH_PER_IP_DAILY_CHARS:-2000}
+      SPEECH_GLOBAL_DAILY_CHARS: ${SPEECH_GLOBAL_DAILY_CHARS:-20000}
       # Only nginx (fixed address below) may tell the backend who the client is.
       TRUSTED_PROXIES: 172.30.0.10
     depends_on:

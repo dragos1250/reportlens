@@ -10,6 +10,7 @@ import { ErrorBoundary } from "../components/ErrorBoundary"
 import { Icon } from "../components/Icon"
 import { forgetUpload, readUploads } from "../lib/myUploads"
 import { shortName } from "../lib/reports"
+import { useServerConfig } from "../lib/useServerConfig"
 import { readFlag, writeFlag } from "../lib/storage"
 import { findPassage, type Match, renderItem, type TextItemLike } from "../pdf/highlight"
 import { PageRail } from "../pdf/PageRail"
@@ -104,6 +105,10 @@ export function Workspace({ document, onClose }: { document: DocumentInfo; onClo
   const [pendingSelection, setPendingSelection] = useState<Selection | null>(null)
   const viewerRef = useRef<HTMLDivElement>(null)
   const comparing = compareWith ? [document, compareWith] : null
+  const config = useServerConfig()
+  // Uploaded reports are read with the browser voice only: their text never goes to ElevenLabs.
+  const premiumVoice = Boolean(config?.premiumVoice)
+    && document.source !== "upload" && compareWith?.source !== "upload"
 
   // The target's place on the shown page, recomputed when the page text or the target
   // changes. No match: nothing is marked, the jump still happened.
@@ -338,6 +343,7 @@ export function Workspace({ document, onClose }: { document: DocumentInfo; onClo
               onShowSelection={showSelection}
               onSearchReport={openSearch}
               comparing={comparing}
+              premiumVoice={premiumVoice}
             />
           </ErrorBoundary>
         </div>
