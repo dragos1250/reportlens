@@ -48,12 +48,13 @@ class PgVectorStore:
 def list_documents(conn) -> list[dict]:
     rows = conn.execute(
         """
-        SELECT d.doc_id, d.title, count(c.position)
+        SELECT d.doc_id, d.title, count(c.position), d.source, d.pages, d.pages_without_text, d.expires_at
         FROM rag.documents d LEFT JOIN rag.chunks c USING (doc_id)
-        GROUP BY d.doc_id, d.title ORDER BY d.doc_id
+        GROUP BY d.doc_id ORDER BY d.doc_id
         """
     ).fetchall()
-    return [{"doc_id": doc_id, "title": title, "chunks": count} for doc_id, title, count in rows]
+    names = ("doc_id", "title", "chunks", "source", "pages", "pages_without_text", "expires_at")
+    return [dict(zip(names, row)) for row in rows]
 
 
 def load_index_from_db(conn, doc_id: str, model: str) -> Index:

@@ -396,3 +396,29 @@ What this shows:
   of the question" and the model guessed wrong. Not fixed here.
 - With 12 unanswerable questions one question is 8 points; the threshold stays at the
   model-card-based default until the dev/test split of stage 10.
+
+## Stage 13: uploaded reports
+
+### A 1000-page upload was not refused (fixed)
+
+In Docker, a PDF of about 1000 pages (limit: 600) stayed on "Checking the file" instead of
+being refused in seconds. The limit itself was right (`UPLOAD_MAX_PAGES=600` in the
+container) and `pipeline.ingest` did count the pages before reading any text. Two defects in
+the job process (`uploads/run_job.py`) together kept it from getting there:
+
+1. **The embedding model was created before `ingest` ran**: `Embedder(...)` was an argument
+   of the call, so it was built first, before the page check.
+2. **An address-space limit (`RLIMIT_AS`, 2 GB) made loading that model hang.** Measured in
+   the ai-service image, loading the model and embedding 200 short passages: 6.6 s without the
+   limit; with it, no output at all within 120 s.
+
+Fix: `ingest` receives a function that creates the model and calls it only after every check
+has passed; the `RLIMIT_AS` limit is removed (the 10-minute time limit stays). Counting the
+pages of a generated 700-page PDF takes about 0.1 s in the tests.
+
+Tests that would have caught it: a 700-page PDF refused at the default limit without reading
+text or creating the model (`test_uploads.py`), and `run_job.main` with a model that fails if
+created: on the old order it returned the generic failure instead of the page message.
+
+A per-process memory limit that works with PyTorch is not in place; a container memory limit
+needs a measured peak first, so it is left for later rather than guessed.

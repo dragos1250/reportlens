@@ -24,6 +24,42 @@ export interface DocumentInfo {
   docId: string
   title: string
   chunks: number
+  /** "builtin" reports are listed; "upload" ones open by their id only and expire. */
+  source?: "builtin" | "upload"
+  pages?: number | null
+  /** Scanned pages: neither searched nor cited. */
+  pagesWithoutText?: number | null
+  expiresAt?: string | null
+}
+
+/** What this server allows (GET /api/config). */
+export interface ServerConfig {
+  uploadsEnabled: boolean
+  maxUploadMb: number
+}
+
+export type UploadState = "queued" | "reading" | "indexing" | "ready" | "failed"
+
+/** An uploaded report being processed in the background (polled every second). */
+export interface UploadJob {
+  jobId: string
+  docId: string
+  title: string
+  state: UploadState
+  step: string | null
+  done: number
+  total: number
+  /** For the user: what went wrong and what to do. */
+  error: string | null
+  /** Uploads ahead of this one, while queued. */
+  queuePosition: number | null
+}
+
+export interface UploadAccepted {
+  jobId: string
+  docId: string
+  title: string
+  state: UploadState
 }
 
 export interface Conversation {

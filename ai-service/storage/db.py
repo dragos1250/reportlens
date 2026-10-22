@@ -27,6 +27,9 @@ def conninfo(env: Mapping[str, str] | None = None) -> str:
         dbname=env.get("POSTGRES_DB", "reportlens"),
         user=env.get("POSTGRES_USER", "reportlens"),
         password=env["POSTGRES_PASSWORD"],
+        # Without it a closed port could hang for about two minutes on Windows before
+        # failing; a missing database should be reported in seconds.
+        connect_timeout=env.get("POSTGRES_CONNECT_TIMEOUT", "10"),
     )
 
 

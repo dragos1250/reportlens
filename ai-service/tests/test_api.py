@@ -42,7 +42,8 @@ def test_health():
 
 def test_documents_lists_available_reports():
     api, _ = client("unused")
-    assert api.get("/documents").json() == [{"doc_id": "d", "title": "Test report", "chunks": 3}]
+    assert api.get("/documents").json() == [{"doc_id": "d", "title": "Test report", "chunks": 3, "source": "builtin",
+                                             "pages": None, "pages_without_text": None, "expires_at": None}]
 
 
 def test_ask_returns_answer_with_citations_passages_and_cost():
@@ -265,3 +266,93 @@ def test_compare_validates_documents():
     assert api.post("/compare", json={"question": "q", "doc_ids": ["a", "a"]}).status_code == 422
     assert api.post("/compare", json={"question": "q", "doc_ids": ["a"]}).status_code == 422
     assert api.post("/compare", json={"question": "", "doc_ids": ["a", "b"]}).status_code == 422
+
+
+class FakeUploads:
+    """Stands in for uploads.service.Uploads: no database, no files."""
+
+    def __init__(self, reject=None, full=False):
+        from uploads.limits import UploadLimits
+        self.limits = UploadLimits(max_bytes=1024)
+        self.reject, self.full = reject, full
+        self.received = None
+        self.deleted = []
+
+    def submit(self, data, filename):
+        from uploads.checks import UploadRejected, check_header, check_size
+        from uploads.service import TooManyUploads
+        self.received = (data, filename)
+        check_size(len(data), self.limits.max_bytes)
+        check_header(data)
+        if self.full:
+            raise TooManyUploads("The server already keeps 20 uploaded reports.")
+        return {"job_id": "j1", "doc_id": "upload-abc", "title": filename, "state": "queued"}
+
+    def status(self, job_id):
+        if job_id != "j1":
+            return None
+        return {"id": "j1", "doc_id": "upload-abc", "title": "t", "state": "reading", "step": "Reading 3 pages",
+                "done": 2, "total": 3, "error": None, "attempts": 1}
+
+    def delete(self, doc_id):
+        self.deleted.append(doc_id)
+        return doc_id == "upload-abc"
+
+
+def upload_client(uploads=None):
+    docs = [Document(doc_id="d", title="Built-in", chunks=3),
+            Document(doc_id="upload-abc", title="Mine", chunks=2, source="upload", pages=3, pages_without_text=1)]
+    services = Services(documents=lambda: docs, searcher_for=lambda doc_id, method: None, llm=lambda: None,
+                        uploads=uploads)
+    return TestClient(create_app(services))
+
+
+def test_uploaded_documents_are_unlisted_but_open_by_their_id():
+    api = upload_client()
+    assert [d["doc_id"] for d in api.get("/documents").json()] == ["d"]
+    mine = api.get("/documents/upload-abc").json()
+    assert mine["source"] == "upload" and mine["pages_without_text"] == 1
+    assert api.get("/documents/upload-unknown").status_code == 404
+
+
+def test_an_upload_is_accepted_as_a_raw_pdf_body_and_queued():
+    uploads = FakeUploads()
+    response = upload_client(uploads).post("/uploads", content=b"%PDF-1.4 tiny",
+                                           headers={"Content-Type": "application/pdf",
+                                                    "X-Filename": "Annual%20Report%202025.pdf"})
+    assert response.status_code == 202
+    assert response.json() == {"job_id": "j1", "doc_id": "upload-abc", "title": "Annual Report 2025.pdf",
+                               "state": "queued"}
+    assert uploads.received == (b"%PDF-1.4 tiny", "Annual Report 2025.pdf")
+
+
+def test_upload_refusals_are_clear():
+    not_pdf = upload_client(FakeUploads()).post("/uploads", content=b"GIF89a")
+    assert not_pdf.status_code == 422 and "not a PDF" in not_pdf.json()["detail"]
+    too_big = upload_client(FakeUploads()).post("/uploads", content=b"%PDF-" + b"x" * 5000)
+    assert too_big.status_code == 422 and "larger than" in too_big.json()["detail"]
+    full = upload_client(FakeUploads(full=True)).post("/uploads", content=b"%PDF-1.4")
+    assert full.status_code == 429
+    assert upload_client(None).post("/uploads", content=b"%PDF-1.4").status_code == 404
+
+
+def test_job_status_and_deleting_only_uploads():
+    uploads = FakeUploads()
+    api = upload_client(uploads)
+    job = api.get("/uploads/j1").json()
+    assert (job["state"], job["step"], job["done"], job["total"]) == ("reading", "Reading 3 pages", 2, 3)
+    assert "attempts" not in job
+    assert api.get("/uploads/nope").status_code == 404
+    assert api.delete("/documents/upload-abc").status_code == 204
+    assert api.delete("/documents/d").status_code == 404  # a built-in report is never deleted
+    assert uploads.deleted == ["upload-abc"]
+
+
+def test_upload_pdfs_are_served_from_the_upload_folder_only():
+    from api.main import default_services
+    from uploads.jobs import UPLOAD_DIR
+    services = default_services(store="files")
+    good = "upload-" + "a" * 32
+    assert services.pdf_path(good) == UPLOAD_DIR.resolve() / f"{good}.pdf"
+    for bad in ("upload-../../x", "upload-abc", "../vodafone", "Vodafone", "a/b"):
+        assert services.pdf_path(bad) is None

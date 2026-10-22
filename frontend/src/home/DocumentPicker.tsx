@@ -1,17 +1,63 @@
 import { useCallback, useEffect, useState } from "react"
 
 import { api } from "../api/client"
-import type { DocumentInfo } from "../api/types"
+import type { DocumentInfo, ServerConfig, UploadAccepted } from "../api/types"
 import { Brand } from "../components/BrandMark"
+import { forgetUpload, readUploads } from "../lib/myUploads"
 import { PageStack } from "./PageStack"
+import { UploadPanel } from "./UploadPanel"
 
 type Load =
   | { state: "loading" }
   | { state: "error"; message: string }
   | { state: "ready"; documents: DocumentInfo[] }
 
-/** First screen: choose one of the documents already indexed (upload comes later). */
-export function DocumentPicker({ onOpen }: { onOpen: (document: DocumentInfo) => void }) {
+/** Uploads still on the server, checked one by one (they expire or get deleted). */
+function useMyUploads(): [DocumentInfo[], (docId: string) => void] {
+  const [mine, setMine] = useState<DocumentInfo[]>([])
+  useEffect(() => {
+    let cancelled = false
+    async function check() {
+      const found: DocumentInfo[] = []
+      for (const upload of readUploads()) {
+        try {
+          found.push(await api.document(upload.docId))
+        } catch (error) {
+          // Gone (expired or deleted): forget it. Any other failure: keep it for next time.
+          if ((error as { status?: number }).status === 404) forgetUpload(upload.docId)
+        }
+      }
+      if (!cancelled) setMine(found)
+    }
+    check()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+  const remove = useCallback((docId: string) => setMine((all) => all.filter((d) => d.docId !== docId)), [])
+  return [mine, remove]
+}
+
+/** Whether this server accepts uploads; off if the answer cannot be read. */
+function useConfig(): ServerConfig | null {
+  const [config, setConfig] = useState<ServerConfig | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    api.config().then((c) => { if (!cancelled) setConfig(c) }, () => { if (!cancelled) setConfig(null) })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+  return config
+}
+
+/** First screen: upload a report (if this server allows it) or choose one already indexed. */
+export function DocumentPicker({ onOpen, onUploaded = () => {} }: {
+  onOpen: (document: DocumentInfo) => void
+  onUploaded?: (upload: UploadAccepted) => void
+}) {
+  const config = useConfig()
+  const [mine, removeMine] = useMyUploads()
   const [load, setLoad] = useState<Load>({ state: "loading" })
   const [attempt, setAttempt] = useState(0) // Retry bumps it, which reruns the effect
 
@@ -59,6 +105,10 @@ export function DocumentPicker({ onOpen }: { onOpen: (document: DocumentInfo) =>
             Ask questions. Get answers grounded in the document, with the exact page every time.
           </p>
 
+          {config?.uploadsEnabled && <UploadPanel maxMb={config.maxUploadMb} onUploaded={onUploaded} />}
+
+          {mine.length > 0 && <MyUploads documents={mine} onOpen={onOpen} onRemoved={removeMine} />}
+
           <section aria-labelledby="documents-heading">
             <h2 id="documents-heading" className="mb-3 text-sm font-semibold text-text">
               Choose a report
@@ -67,13 +117,65 @@ export function DocumentPicker({ onOpen }: { onOpen: (document: DocumentInfo) =>
           </section>
 
           <p className="mt-6 text-xs text-secondary">
-            Uploading your own PDF is coming later. Answers send only the question and a few passages to
-            the language model.
+            Answers send only the question and a few passages to the language model.
           </p>
         </div>
       </div>
     </main>
   )
+}
+
+/** Reports uploaded from this browser that are still on the server. */
+function MyUploads({ documents, onOpen, onRemoved }: {
+  documents: DocumentInfo[]
+  onOpen: (document: DocumentInfo) => void
+  onRemoved: (docId: string) => void
+}) {
+  const [problem, setProblem] = useState<string | null>(null)
+
+  async function remove(document: DocumentInfo) {
+    setProblem(null)
+    try {
+      await api.deleteDocument(document.docId)
+      forgetUpload(document.docId)
+      onRemoved(document.docId)
+    } catch (error) {
+      setProblem(error instanceof Error ? error.message : "Could not delete. Retry.")
+    }
+  }
+
+  return (
+    <section aria-labelledby="my-uploads-heading" className="mb-8">
+      <h2 id="my-uploads-heading" className="mb-3 text-sm font-semibold text-text">Your uploads</h2>
+      <ul className="m-0 grid list-none gap-2 p-0">
+        {documents.map((document) => (
+          <li key={document.docId} className="flex items-stretch gap-2">
+            <button type="button" onClick={() => onOpen(document)}
+                    className="flex min-h-14 flex-1 items-center justify-between gap-4 rounded-xl border border-line-strong bg-white/[0.02] px-4 py-3 text-left hover:border-accent">
+              <span>
+                <span className="block text-sm font-semibold text-text">{document.title}</span>
+                <span className="block text-xs text-secondary tabular-nums">
+                  {document.pages ?? "?"} pages{expiresIn(document.expiresAt)}
+                </span>
+              </span>
+              <span aria-hidden="true" className="text-secondary">→</span>
+            </button>
+            <button type="button" onClick={() => void remove(document)} aria-label={`Delete ${document.title}`}
+                    className="min-h-14 rounded-xl border border-line px-3 text-xs text-secondary hover:border-line-strong hover:text-text">
+              Delete
+            </button>
+          </li>
+        ))}
+      </ul>
+      {problem && <p role="alert" className="m-0 mt-2 text-sm text-text">{problem}</p>}
+    </section>
+  )
+}
+
+function expiresIn(expiresAt: string | null | undefined): string {
+  if (!expiresAt) return ""
+  const hours = Math.max(0, Math.round((new Date(expiresAt).getTime() - Date.now()) / 3_600_000))
+  return ` · deleted in about ${hours} h`
 }
 
 function DocumentList({ load, onOpen, onRetry }: {

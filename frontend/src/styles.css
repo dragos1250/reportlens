@@ -110,6 +110,12 @@
   .page-stack__bars i:last-child {
     background: rgb(255 225 77 / 0.42);
   }
+  /* Processing: the stack fans out while the report is read and indexed. */
+  .page-stack__page { transition: transform 0.9s ease-out; }
+  .page-stack--fanned .page-stack__page:nth-child(2) { transform: rotate(-16deg) translate3d(-120px, 30px, -100px); }
+  .page-stack--fanned .page-stack__page:nth-child(3) { transform: rotate(-6deg) translate3d(-44px, 10px, -62px); }
+  .page-stack--fanned .page-stack__page:nth-child(4) { transform: rotate(5deg) translate3d(36px, 6px, -28px); }
+  .page-stack--fanned .page-stack__page:nth-child(5) { transform: rotate(15deg) translate3d(112px, 24px, 10px); }
 }
 
 /* Cited passage in the pdf.js text layer: a yellow highlighter swept left to right

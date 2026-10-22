@@ -1,4 +1,4 @@
-import type { Conversation, DocumentInfo, Lang, Message, Selection } from "./types"
+import type { Conversation, DocumentInfo, Lang, Message, Selection, ServerConfig, UploadAccepted, UploadJob } from "./types"
 
 /** A failed request, with a message the UI can show as is. status 0 = no response at all. */
 export class ApiError extends Error {
@@ -21,6 +21,8 @@ function describe(status: number, detail: string | undefined): string {
   if (status === 404) return detail ?? "Not found."
   // Usage limits: the backend says which one and when to try again.
   if (status === 429) return detail ?? "Too many questions. Wait a moment, then ask again."
+  // An upload refused (too large, not a PDF, scanned): the backend says why.
+  if (status === 413 || status === 422) return detail ?? "The file was not accepted."
   if (status === 502) return "The answer service is not responding. Check that the AI service is running, then retry."
   return `The server answered with an error (${status}). Retry in a moment.`
 }
@@ -70,6 +72,35 @@ export const api = {
       lang: lang === "auto" ? null : lang,
       ...(selection ? { selection } : {}),
     }),
+
+  config: () => request<ServerConfig>("/config"),
+
+  /** Any report by id, built-in or uploaded (uploaded ones are not in the list). */
+  document: (docId: string) => request<DocumentInfo>(`/documents/${encodeURIComponent(docId)}`),
+
+  /**
+   * The PDF goes as the raw request body, not a multipart form; its name travels
+   * URL-encoded in X-Filename and is only a display title.
+   */
+  upload: (file: File) =>
+    request<UploadAccepted>("/uploads", {
+      method: "POST",
+      headers: { "Content-Type": "application/pdf", "X-Filename": encodeURIComponent(file.name) },
+      body: file,
+    }),
+
+  uploadJob: (jobId: string) => request<UploadJob>(`/uploads/${encodeURIComponent(jobId)}`),
+
+  /** Uploaded reports only; deletes their conversations too. */
+  deleteDocument: async (docId: string) => {
+    let response: Response
+    try {
+      response = await fetch(url(`/documents/${encodeURIComponent(docId)}`), { method: "DELETE" })
+    } catch {
+      throw new ApiError(0, "Could not reach the server. Check that the backend is running, then retry.")
+    }
+    if (!response.ok && response.status !== 404) throw new ApiError(response.status, describe(response.status, undefined))
+  },
 
   /** Streamed by the backend with range support; pdf.js loads it in parts. */
   pdfUrl: (docId: string) => url(`/documents/${encodeURIComponent(docId)}/pdf`),

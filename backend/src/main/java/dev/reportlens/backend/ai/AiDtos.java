@@ -2,6 +2,7 @@ package dev.reportlens.backend.ai;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 
 /** JSON shapes of the FastAPI service (snake_case on the wire). */
@@ -10,7 +11,32 @@ public final class AiDtos {
     private AiDtos() {
     }
 
-    public record Document(@JsonProperty("doc_id") String docId, String title, int chunks) {
+    /** source: "builtin" (listed) or "upload" (unlisted, expires). */
+    public record Document(@JsonProperty("doc_id") String docId, String title, int chunks, String source,
+                           Integer pages, @JsonProperty("pages_without_text") Integer pagesWithoutText,
+                           @JsonProperty("expires_at") OffsetDateTime expiresAt) {
+
+        public Document {
+            source = source == null ? "builtin" : source;  // an older AI service sends no source
+        }
+
+        public Document(String docId, String title, int chunks) {
+            this(docId, title, chunks, "builtin", null, null, null);
+        }
+    }
+
+    public record UploadAccepted(@JsonProperty("job_id") String jobId, @JsonProperty("doc_id") String docId,
+                                 String title, String state) {
+    }
+
+    /** state: queued | reading | indexing | ready | failed (error says why and what to do). */
+    public record UploadJob(String id, @JsonProperty("doc_id") String docId, String title, String state, String step,
+                            int done, int total, String error,
+                            @JsonProperty("queue_position") Integer queuePosition) {
+    }
+
+    /** FastAPI's error body: {"detail": "..."}. */
+    public record ErrorDetail(String detail) {
     }
 
     public record AskRequest(String question, @JsonProperty("doc_id") String docId, String lang) {

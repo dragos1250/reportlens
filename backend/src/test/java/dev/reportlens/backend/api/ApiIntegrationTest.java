@@ -24,6 +24,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -63,8 +64,11 @@ class ApiIntegrationTest {
 
     @BeforeEach
     void knownDocuments() {
-        when(ai.documents()).thenReturn(List.of(new AiDtos.Document(DOC, "Vodafone 20-F FY26", 2549),
-                new AiDtos.Document(OTHER, "Deutsche Telekom Annual Report 2025", 2245)));
+        List<AiDtos.Document> known = List.of(new AiDtos.Document(DOC, "Vodafone 20-F FY26", 2549),
+                new AiDtos.Document(OTHER, "Deutsche Telekom Annual Report 2025", 2245));
+        when(ai.documents()).thenReturn(known);
+        when(ai.document(anyString())).thenAnswer(call ->
+                known.stream().filter(d -> d.docId().equals(call.getArgument(0))).findFirst());
     }
 
     private String startConversation() throws Exception {

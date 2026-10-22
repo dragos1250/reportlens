@@ -46,6 +46,8 @@ export function assistantMessage(overrides: Partial<Message> = {}): Message {
 
 export const handlers = [
   http.get("*/api/documents", () => HttpResponse.json([DOCUMENT])),
+  // Uploads are off unless a test turns them on (as on a server without UPLOADS_ENABLED).
+  http.get("*/api/config", () => HttpResponse.json({ uploadsEnabled: false, maxUploadMb: 50 })),
   http.post("*/api/conversations", () => HttpResponse.json(CONVERSATION, { status: 201 })),
   http.post("*/api/conversations/:id/messages", () => HttpResponse.json(assistantMessage(), { status: 201 })),
 ]

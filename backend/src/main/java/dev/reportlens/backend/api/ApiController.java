@@ -1,5 +1,6 @@
 package dev.reportlens.backend.api;
 
+import dev.reportlens.backend.ai.AiDtos;
 import dev.reportlens.backend.api.ApiDtos.AskQuestion;
 import dev.reportlens.backend.api.ApiDtos.CitationDto;
 import dev.reportlens.backend.api.ApiDtos.ConversationDto;
@@ -44,7 +45,7 @@ public class ApiController {
 
     @GetMapping("/documents")
     public List<DocumentDto> documents() {
-        return service.documents().stream().map(d -> new DocumentDto(d.docId(), d.title(), d.chunks())).toList();
+        return service.documents().stream().map(ApiController::toDto).toList();
     }
 
     /**
@@ -93,6 +94,11 @@ public class ApiController {
         Message answer = service.ask(id, request.question(), request.lang(), selection);
         limits.record(ip, answer.getCostUsd());
         return ResponseEntity.created(URI.create("/api/conversations/" + id + "/messages")).body(toDto(answer));
+    }
+
+    static DocumentDto toDto(AiDtos.Document d) {
+        return new DocumentDto(d.docId(), d.title(), d.chunks(), d.source(),
+                d.pages(), d.pagesWithoutText(), d.expiresAt());
     }
 
     private static ConversationDto toDto(Conversation c) {

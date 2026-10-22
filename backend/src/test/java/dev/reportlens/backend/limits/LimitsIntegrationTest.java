@@ -17,6 +17,7 @@ import org.springframework.test.web.servlet.ResultActions;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.times;
@@ -62,7 +63,7 @@ class LimitsIntegrationTest {
     @BeforeEach
     void setUp() throws Exception {
         messages.deleteAll();  // today's global cost starts at zero in every test
-        when(ai.documents()).thenReturn(List.of(new AiDtos.Document(DOC, "Vodafone", 1)));
+        when(ai.document(DOC)).thenReturn(Optional.of(new AiDtos.Document(DOC, "Vodafone", 1)));
         answerCosting(0.0001);
         String body = mvc.perform(post("/api/conversations").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"docId\": \"" + DOC + "\"}")).andReturn().getResponse().getContentAsString();

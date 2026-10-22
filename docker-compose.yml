@@ -58,8 +58,13 @@ services:
       LLM_MODEL: ${LLM_MODEL:-gpt-6-luna}
       LLM_API_KEY: ${LLM_API_KEY:?Set LLM_API_KEY in .env (see .env.example)}
       RETRIEVAL_STORE: postgres
+      # Uploaded reports: checked and ingested here, one at a time, in a separate process.
+      UPLOAD_MAX_MB: ${UPLOAD_MAX_MB:-50}
+      UPLOAD_MAX_PAGES: ${UPLOAD_MAX_PAGES:-600}
+      UPLOAD_MIN_TEXT_SHARE: ${UPLOAD_MIN_TEXT_SHARE:-0.5}
+      UPLOAD_MAX_DOCUMENTS: ${UPLOAD_MAX_DOCUMENTS:-20}
     volumes:
-      - reports:/app/data:ro  # the PDFs, for the viewer
+      - reports:/app/data  # the PDFs for the viewer; uploads are written here too
     depends_on:
       setup:
         condition: service_completed_successfully  # the document list is read once, at start
@@ -76,6 +81,10 @@ services:
       LIMIT_REQUESTS_PER_MINUTE: ${LIMIT_REQUESTS_PER_MINUTE:-10}
       LIMIT_PER_IP_DAILY_USD: ${LIMIT_PER_IP_DAILY_USD:-0.05}
       LIMIT_GLOBAL_DAILY_USD: ${LIMIT_GLOBAL_DAILY_USD:-1.00}
+      # Off unless set: a public instance without this variable accepts no uploads.
+      UPLOADS_ENABLED: ${UPLOADS_ENABLED:-false}
+      UPLOAD_MAX_MB: ${UPLOAD_MAX_MB:-50}
+      UPLOADS_PER_HOUR: ${UPLOADS_PER_HOUR:-3}
       # Only nginx (fixed address below) may tell the backend who the client is.
       TRUSTED_PROXIES: 172.30.0.10
     depends_on:

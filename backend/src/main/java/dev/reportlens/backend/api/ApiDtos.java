@@ -18,7 +18,20 @@ public final class ApiDtos {
     private ApiDtos() {
     }
 
-    public record DocumentDto(String docId, String title, int chunks) {
+    /** source: "builtin" or "upload"; pagesWithoutText: scanned pages, neither searched nor cited. */
+    public record DocumentDto(String docId, String title, int chunks, String source, Integer pages,
+                              Integer pagesWithoutText, OffsetDateTime expiresAt) {
+    }
+
+    /** What the browser needs to know about this server. */
+    public record ConfigDto(boolean uploadsEnabled, int maxUploadMb) {
+    }
+
+    public record UploadAcceptedDto(String jobId, String docId, String title, String state) {
+    }
+
+    public record UploadJobDto(String jobId, String docId, String title, String state, String step, int done,
+                               int total, String error, Integer queuePosition) {
     }
 
     /** compareDocId (optional): the second report; every question then compares the two. */

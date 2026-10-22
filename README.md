@@ -37,6 +37,7 @@ It is built as a **Retrieval-Augmented Generation (RAG)** system, so the assista
 - 🚫 **"Not in the report" mode**: the assistant refuses to answer when there is no supporting source
 - 🆚 **Compare two reports**: each report is searched on its own, every figure cites its report and page, and the assistant says when the financial years differ
 - 🌍 **Ask in Romanian or English**: multilingual embeddings, documents in English
+- 📤 **Upload your own PDF** (when the server allows it): ingested in the background with visible progress, then searchable, citable and comparable with another report
 - 📊 **Evaluation** (in progress): a hand-written test set with expected pages; results so far are in [Evaluation](#-evaluation)
 
 ## 🎬 Demo
@@ -121,6 +122,16 @@ per client IP, an estimated LLM cost of $0.05 per IP and $1.00 overall per UTC d
 1,000 characters and selections up to 5,000. Past a limit the API answers `429` with `Retry-After`
 and makes no LLM call. Behind nginx the client IP comes from `X-Forwarded-For`, which the backend
 trusts only from the nginx container's fixed address.
+
+**Uploads** (on when `UPLOADS_ENABLED=true`, as in `.env.example`; **off** in the code's default,
+so a public instance without the variable accepts none): PDFs up to 50 MB and 600 pages, with a
+text layer on at least half of the pages; 3 uploads per hour per client IP, one at a time, at
+most 20 kept on the server, each deleted after 24 hours. The file is checked by its bytes, not its
+name, stored under a random id, and parsed in a separate process with a time limit (10 minutes);
+the page count is checked before any text is read. Ingestion is local: no LLM call, no cost. It runs on the server's
+CPU, one upload at a time, so **answers can be slower while a report is being ingested**.
+Uploaded reports are not listed; anyone with the link can open one, so do not upload confidential
+documents.
 
 ### 🛠️ Development without Docker (Windows PowerShell)
 
@@ -249,6 +260,11 @@ reportlens/
 - 📊 **Tables stay in the running text**, row by row with their labels and numbers. Table
   detection is off by default: on the Vodafone report it found 505 "tables", of which only 7
   were plausible, and it lost data (see [`ai-service/NOTES.md`](ai-service/NOTES.md)).
+- 📤 **Uploaded reports are indexed automatically, with rules calibrated on two reports.** The
+  header/footer cleaning, the table handling and the "not in the report" threshold were tuned on the
+  Vodafone and Deutsche Telekom reports only; on other layouts they may do worse. The app says so on
+  every uploaded report and shows how many of its pages have no text layer. No quality figure is
+  claimed for uploads.
 - 🧮 **Usage limits per IP are kept in memory** and reset when the backend restarts; the global
   daily total is read from the database.
 - 🖨️ **Scanned pages are not covered.** Pages without a text layer are neither indexed for the assistant nor searchable with "Search the report text" (there is no OCR). In the test report (Vodafone Form 20-F FY26, 588 pages), 116 pages have no text layer and the same 116 pages have no passage in the database: an exact overlap, mostly scanned exhibits (pages 262, 341-401 and 480-581, with gaps).

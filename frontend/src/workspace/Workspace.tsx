@@ -8,6 +8,7 @@ import { useConversation } from "../chat/useConversation"
 import { BrandMark } from "../components/BrandMark"
 import { ErrorBoundary } from "../components/ErrorBoundary"
 import { Icon } from "../components/Icon"
+import { forgetUpload, readUploads } from "../lib/myUploads"
 import { shortName } from "../lib/reports"
 import { readFlag, writeFlag } from "../lib/storage"
 import { findPassage, type Match, renderItem, type TextItemLike } from "../pdf/highlight"
@@ -18,6 +19,7 @@ import { SelectionToolbar } from "../pdf/SelectionToolbar"
 import { marksForHit, type PdfDocumentLike, type SearchHit, searchPage, textSourceFor } from "../pdf/textSearch"
 import { useTextSearch } from "../pdf/useTextSearch"
 import { clampPage, ViewerToolbar } from "../pdf/ViewerToolbar"
+import { UploadNotice } from "./UploadNotice"
 
 const NIGHT_KEY = "reportlens.night-reading"
 
@@ -47,18 +49,29 @@ function findSelection(items: TextItemLike[], selection: Selection): Match {
   return findPassage(items, selection.text)
 }
 
-/** The other reports that can be compared with this one; empty if the list cannot be loaded. */
+/**
+ * The other reports that can be compared with this one: the built-in ones and the ones
+ * uploaded from this browser that are still on the server. Empty if nothing can be loaded.
+ */
 function useOtherReports(docId: string): DocumentInfo[] {
   const [others, setOthers] = useState<DocumentInfo[]>([])
   useEffect(() => {
     let cancelled = false
     async function load() {
+      let all: DocumentInfo[] = []
       try {
-        const all = await api.documents()
-        if (!cancelled) setOthers(all.filter((d) => d.docId !== docId))
+        all = await api.documents()
       } catch {
         // Comparing is optional: without the list, the control is simply not offered.
       }
+      for (const upload of readUploads()) {
+        try {
+          all.push(await api.document(upload.docId))
+        } catch {
+          // expired or deleted: not offered
+        }
+      }
+      if (!cancelled) setOthers(all.filter((d) => d.docId !== docId))
     }
     load()
     return () => {
@@ -285,6 +298,12 @@ export function Workspace({ document, onClose }: { document: DocumentInfo; onClo
             <ViewerToolbar page={page} pages={pages} zoom={zoom} onPage={goTo} onZoom={setZoom}
                            searchOpen={searchOpen} onToggleSearch={() => (searchOpen ? closeSearch() : openSearch(null))} />
             <div>
+              {viewed.source === "upload" && (
+                <UploadNotice document={viewed} onDeleted={() => {
+                  forgetUpload(viewed.docId)
+                  onClose()
+                }} />
+              )}
               {searchOpen && (
                 <SearchPanel state={textSearch.state} hint={searchHint}
                              activeHit={target?.kind === "search" ? target.hit : null}

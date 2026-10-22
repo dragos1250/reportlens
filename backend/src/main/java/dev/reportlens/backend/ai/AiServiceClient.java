@@ -7,15 +7,23 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import dev.reportlens.backend.limits.LimitExceededException;
+import dev.reportlens.backend.uploads.UploadRejectedException;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 /**
  * HTTP client for the FastAPI service. The backend never calls the LLM itself:
@@ -159,6 +167,70 @@ public class AiServiceClient {
                     .retrieve().body(AiDtos.ExplainResponse.class);
         } catch (RestClientException e) {
             throw new AiServiceException("could not get an explanation", e);
+        }
+    }
+
+    /** Any document by id, built-in or uploaded (uploads are not in the list). */
+    public Optional<AiDtos.Document> document(String docId) {
+        try {
+            return Optional.ofNullable(http.get().uri("/documents/{docId}", docId).retrieve()
+                    .body(AiDtos.Document.class));
+        } catch (HttpClientErrorException.NotFound e) {
+            return Optional.empty();
+        } catch (RestClientException e) {
+            throw new AiServiceException("could not read the document", e);
+        }
+    }
+
+    /**
+     * Sends the PDF as the request body; the file name travels URL-encoded in X-Filename
+     * and is only a display title. The AI service's refusals keep their message for the user.
+     */
+    public AiDtos.UploadAccepted upload(byte[] pdf, String filename) {
+        try {
+            return http.post().uri("/uploads").contentType(MediaType.APPLICATION_PDF)
+                    .header("X-Filename", URLEncoder.encode(filename, StandardCharsets.UTF_8).replace("+", "%20"))
+                    .body(pdf).retrieve().body(AiDtos.UploadAccepted.class);
+        } catch (HttpClientErrorException e) {
+            String detail = detail(e, "The upload was not accepted.");
+            if (e.getStatusCode().value() == 429) {
+                throw new LimitExceededException(detail, 3600);
+            }
+            throw new UploadRejectedException(HttpStatus.UNPROCESSABLE_CONTENT, detail);
+        } catch (RestClientException e) {
+            throw new AiServiceException("could not upload the document", e);
+        }
+    }
+
+    public Optional<AiDtos.UploadJob> uploadJob(String jobId) {
+        try {
+            return Optional.ofNullable(http.get().uri("/uploads/{jobId}", jobId).retrieve()
+                    .body(AiDtos.UploadJob.class));
+        } catch (HttpClientErrorException.NotFound e) {
+            return Optional.empty();
+        } catch (RestClientException e) {
+            throw new AiServiceException("could not read the upload", e);
+        }
+    }
+
+    /** True if an uploaded document was deleted; built-in reports are never deleted. */
+    public boolean deleteDocument(String docId) {
+        try {
+            http.delete().uri("/documents/{docId}", docId).retrieve().toBodilessEntity();
+            return true;
+        } catch (HttpClientErrorException.NotFound e) {
+            return false;
+        } catch (RestClientException e) {
+            throw new AiServiceException("could not delete the document", e);
+        }
+    }
+
+    private static String detail(RestClientResponseException e, String fallback) {
+        try {
+            AiDtos.ErrorDetail body = e.getResponseBodyAs(AiDtos.ErrorDetail.class);
+            return body != null && body.detail() != null ? body.detail() : fallback;
+        } catch (RuntimeException notJson) {
+            return fallback;
         }
     }
 

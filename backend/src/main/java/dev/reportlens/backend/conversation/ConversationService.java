@@ -45,9 +45,9 @@ public class ConversationService {
 
     /** With compareDocId, every question in the conversation compares the two reports. */
     public Conversation start(String docId, String compareDocId, String title) {
-        List<String> known = ai.documents().stream().map(AiDtos.Document::docId).toList();
+        // By id, not from the list: uploaded reports are unlisted.
         for (String id : compareDocId == null ? List.of(docId) : List.of(docId, compareDocId)) {
-            if (!known.contains(id)) {
+            if (ai.document(id).isEmpty()) {
                 throw new NotFoundException("unknown document: " + id);
             }
         }

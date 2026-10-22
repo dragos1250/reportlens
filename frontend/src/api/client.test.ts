@@ -49,6 +49,18 @@ describe("api client", () => {
     expect(sent).toEqual({ question: "Care au fost veniturile?", lang: expected })
   })
 
+  it("treats deleting a document that is already gone as done", async () => {
+    server.use(http.delete("*/api/documents/:id", () => HttpResponse.json({ detail: "gone" }, { status: 404 })))
+    await expect(api.deleteDocument("upload-abc")).resolves.toBeUndefined()
+  })
+
+  it("keeps the server's reason when an upload is refused", async () => {
+    server.use(http.post("*/api/uploads", () =>
+      HttpResponse.json({ detail: "The file is larger than 50 MB." }, { status: 413 })))
+    const file = new File(["%PDF-"], "r.pdf", { type: "application/pdf" })
+    await expect(api.upload(file)).rejects.toMatchObject({ status: 413, message: "The file is larger than 50 MB." })
+  })
+
   it("shows the backend's reason when a usage limit is reached", async () => {
     server.use(
       http.post("*/api/conversations/:id/messages", () => HttpResponse.json(

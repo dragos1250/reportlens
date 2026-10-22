@@ -1,6 +1,7 @@
 package dev.reportlens.backend.ai;
 
 import dev.reportlens.backend.conversation.NotFoundException;
+import dev.reportlens.backend.uploads.UploadRejectedException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
@@ -116,6 +117,42 @@ class AiServiceClientTest {
         assertThat(response.missingDocIds()).containsExactly("vodafone-20f-fy26");
         assertThat(response.citations().getFirst().docId()).isEqualTo("dtag-ar-2025");
         server.verify();
+    }
+
+    @Test
+    void anUploadIsSentAsAPdfBodyWithTheNameUrlEncoded() {
+        server.expect(requestTo("http://ai.test/uploads"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header(HttpHeaders.CONTENT_TYPE, "application/pdf"))
+                .andExpect(header("X-Filename", "Raport%20anual%20%C8%99i%20note.pdf"))
+                .andExpect(content().bytes("%PDF-1.4".getBytes()))
+                .andRespond(withStatus(HttpStatus.ACCEPTED).contentType(MediaType.APPLICATION_JSON).body("""
+                        {"job_id": "j1", "doc_id": "upload-x", "title": "Raport anual și note", "state": "queued"}
+                        """));
+
+        AiDtos.UploadAccepted accepted = client.upload("%PDF-1.4".getBytes(), "Raport anual și note.pdf");
+
+        assertThat(accepted.jobId()).isEqualTo("j1");
+        server.verify();
+    }
+
+    @Test
+    void theAiServicesRefusalKeepsItsMessage() {
+        server.expect(requestTo("http://ai.test/uploads")).andRespond(withStatus(HttpStatus.UNPROCESSABLE_CONTENT)
+                .contentType(MediaType.APPLICATION_JSON).body("{\"detail\": \"This file is not a PDF. Upload a PDF report.\"}"));
+
+        assertThatThrownBy(() -> client.upload("GIF89a".getBytes(), "x.pdf"))
+                .isInstanceOf(UploadRejectedException.class)
+                .hasMessage("This file is not a PDF. Upload a PDF report.");
+    }
+
+    @Test
+    void anUnknownDocumentOrJobIsEmptyNotAnError() {
+        server.expect(requestTo("http://ai.test/documents/upload-nope")).andRespond(withStatus(HttpStatus.NOT_FOUND));
+        server.expect(requestTo("http://ai.test/uploads/nope")).andRespond(withStatus(HttpStatus.NOT_FOUND));
+
+        assertThat(client.document("upload-nope")).isEmpty();
+        assertThat(client.uploadJob("nope")).isEmpty();
     }
 
     @Test

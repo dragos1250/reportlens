@@ -10,11 +10,13 @@ citations are the same code the CLI uses.
 import json
 import os
 from collections.abc import Callable
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
+from urllib.parse import unquote
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 
 from generation.answer import Answer, answer_question
@@ -24,7 +26,7 @@ from generation.llm import LLMClient
 from retrieval.search import Searcher
 
 from .schemas import (AskRequest, AskResponse, Citation, CompareRequest, CompareResponse, Document, ExplainRequest,
-                      ExplainResponse, Health, Passage, Timings, Usage)
+                      ExplainResponse, Health, Passage, Timings, UploadAccepted, UploadJob, Usage)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = REPO_ROOT / "scripts" / "reports.json"
@@ -39,6 +41,8 @@ class Services:
     searcher_for: Callable[[str, str], Searcher]  # (doc_id, method) -> Searcher
     llm: Callable[[], LLMClient]
     pdf_path: Callable[[str], Path | None] = lambda doc_id: None  # PDF of a known document, if on disk
+    uploads: object | None = None  # uploads.service.Uploads; None = uploads not available
+    start_worker: Callable[[], None] | None = None  # the background ingestion worker
 
 
 def shared_fields(answer: Answer | Comparison) -> dict:
@@ -68,7 +72,19 @@ def shared_fields(answer: Answer | Comparison) -> dict:
 
 
 def create_app(services: Services) -> FastAPI:
-    app = FastAPI(title="ReportLens AI service")
+    @asynccontextmanager
+    async def lifespan(_: FastAPI):
+        if services.start_worker:
+            services.start_worker()
+        yield
+
+    app = FastAPI(title="ReportLens AI service", lifespan=lifespan)
+
+    def find(doc_id: str) -> Document:
+        for document in services.documents():
+            if document.doc_id == doc_id:
+                return document
+        raise HTTPException(status_code=404, detail=f"unknown doc_id {doc_id!r}")
 
     @app.get("/health")
     def health() -> Health:
@@ -76,14 +92,52 @@ def create_app(services: Services) -> FastAPI:
 
     @app.get("/documents")
     def documents() -> list[Document]:
-        return services.documents()
+        """The built-in reports. Uploaded ones are unlisted: they open by their id only."""
+        return [d for d in services.documents() if d.source == "builtin"]
+
+    @app.get("/documents/{doc_id}")
+    def document(doc_id: str) -> Document:
+        return find(doc_id)
+
+    @app.post("/uploads", status_code=202)
+    async def upload(request: Request) -> UploadAccepted:
+        """The PDF is the request body (application/pdf); X-Filename (URL-encoded) gives its
+        name, used as a display title only. Checks: real PDF bytes, size, how many are kept."""
+        if services.uploads is None:
+            raise HTTPException(status_code=404, detail="uploads are not available")
+        from uploads.service import TooManyUploads, UploadRejected
+        limit = services.uploads.limits.max_bytes
+        data = bytearray()
+        async for part in request.stream():  # stop reading past the limit
+            data.extend(part)
+            if len(data) > limit:
+                break
+        try:
+            return UploadAccepted(**services.uploads.submit(bytes(data), unquote(request.headers.get("x-filename", ""))))
+        except UploadRejected as rejected:
+            raise HTTPException(status_code=422, detail=str(rejected))
+        except TooManyUploads as full:
+            raise HTTPException(status_code=429, detail=str(full))
+
+    @app.get("/uploads/{job_id}")
+    def upload_status(job_id: str) -> UploadJob:
+        job = services.uploads.status(job_id) if services.uploads else None
+        if job is None:
+            raise HTTPException(status_code=404, detail="unknown upload")
+        return UploadJob(**{k: v for k, v in job.items() if k != "attempts"})
+
+    @app.delete("/documents/{doc_id}", status_code=204)
+    def delete_document(doc_id: str) -> Response:
+        """Uploaded documents only; the built-in reports cannot be deleted."""
+        if services.uploads is None or not doc_id.startswith("upload-") or not services.uploads.delete(doc_id):
+            raise HTTPException(status_code=404, detail=f"no uploaded document {doc_id!r}")
+        return Response(status_code=204)
 
     @app.get("/documents/{doc_id}/pdf")
     def pdf(doc_id: str) -> FileResponse:
         """The report PDF. FileResponse answers Range requests (206), so pdf.js can load
         a 32 MB file page by page instead of downloading it whole."""
-        if doc_id not in {d.doc_id for d in services.documents()}:
-            raise HTTPException(status_code=404, detail=f"unknown doc_id {doc_id!r}")
+        find(doc_id)
         path = services.pdf_path(doc_id)
         if path is None or not path.is_file():
             raise HTTPException(status_code=404, detail=f"no PDF on disk for {doc_id!r}")
@@ -164,6 +218,7 @@ def default_services(store: str | None = None) -> Services:
 
     @lru_cache(maxsize=1)
     def documents() -> list[Document]:
+        """Read once, then again after an upload is ready or removed (on_change)."""
         if store == "files":
             return documents_from_files()
         from storage.pgstore import list_documents
@@ -179,11 +234,38 @@ def default_services(store: str | None = None) -> Services:
 
     def pdf_path(doc_id: str) -> Path | None:
         """Only for document ids the database knows (checked by the endpoint), and only
-        inside data/raw/: the path is never taken from the request as given."""
-        path = (RAW_DIR / f"{doc_id}.pdf").resolve()
-        return path if path.parent == RAW_DIR.resolve() else None
+        inside data/raw/ (built-in) or data/uploads/ (uploaded): the path is never taken
+        from the request as given."""
+        import re
+        from uploads.jobs import UPLOAD_DIR, UPLOAD_ID
+        if UPLOAD_ID.fullmatch(doc_id):
+            return UPLOAD_DIR.resolve() / f"{doc_id}.pdf"
+        if doc_id.startswith("upload-") or not re.fullmatch(r"[a-z0-9][a-z0-9-]*", doc_id):
+            return None
+        return RAW_DIR.resolve() / f"{doc_id}.pdf"
 
-    return Services(documents=documents, searcher_for=searcher_for, llm=llm, pdf_path=pdf_path)
+    def on_change() -> None:
+        """An upload became ready or was removed: read the document list again, and drop
+        cached searchers (a removed document's index must not stay in memory)."""
+        documents.cache_clear()
+        searcher_for.cache_clear()
+
+    uploads = start_worker = None
+    if store == "postgres":
+        from storage.db import apply_schema, connect
+        from uploads.limits import UploadLimits
+        from uploads.service import Uploads
+        from uploads.worker import Worker
+
+        limits = UploadLimits.from_env()
+        uploads = Uploads(shared_connection, limits, on_change)
+
+        def start_worker() -> None:
+            apply_schema(shared_connection())  # the jobs table must exist before the first upload
+            Worker(connect, on_change, limits).start()
+
+    return Services(documents=documents, searcher_for=searcher_for, llm=llm, pdf_path=pdf_path,
+                    uploads=uploads, start_worker=start_worker)
 
 
 app = create_app(default_services())

@@ -36,3 +36,27 @@ CREATE TABLE IF NOT EXISTS rag.chunk_embeddings (
     PRIMARY KEY (doc_id, model, position),
     FOREIGN KEY (doc_id, position) REFERENCES rag.chunks (doc_id, position) ON DELETE CASCADE
 );
+
+-- Stage 13: documents uploaded by users next to the built-in reports. Uploaded ones are
+-- unlisted (opened by their random id only) and expire; built-in ones never do.
+ALTER TABLE rag.documents ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'builtin'
+    CHECK (source IN ('builtin', 'upload'));
+ALTER TABLE rag.documents ADD COLUMN IF NOT EXISTS pages integer;
+ALTER TABLE rag.documents ADD COLUMN IF NOT EXISTS pages_without_text integer;
+ALTER TABLE rag.documents ADD COLUMN IF NOT EXISTS expires_at timestamptz;
+
+-- One row per upload: the background worker takes queued jobs one at a time. The
+-- document row appears only when the job is ready, in one transaction.
+CREATE TABLE IF NOT EXISTS rag.ingest_jobs (
+    id         text PRIMARY KEY,
+    doc_id     text NOT NULL UNIQUE,
+    title      text NOT NULL,
+    state      text NOT NULL CHECK (state IN ('queued', 'reading', 'indexing', 'ready', 'failed')),
+    step       text,              -- label shown while working, e.g. "Splitting into passages"
+    done       integer NOT NULL DEFAULT 0,
+    total      integer NOT NULL DEFAULT 0,
+    error      text,              -- for the user: what went wrong and what to do
+    attempts   integer NOT NULL DEFAULT 0,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now()
+);

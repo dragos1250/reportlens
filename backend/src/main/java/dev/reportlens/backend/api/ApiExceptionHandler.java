@@ -4,6 +4,7 @@ import dev.reportlens.backend.ai.AiServiceException;
 import dev.reportlens.backend.conversation.InvalidRequestException;
 import dev.reportlens.backend.conversation.NotFoundException;
 import dev.reportlens.backend.limits.LimitExceededException;
+import dev.reportlens.backend.uploads.UploadRejectedException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -31,6 +32,12 @@ public class ApiExceptionHandler {
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                 .header(HttpHeaders.RETRY_AFTER, String.valueOf(e.getRetryAfterSeconds()))
                 .body(ProblemDetail.forStatusAndDetail(HttpStatus.TOO_MANY_REQUESTS, e.getMessage()));
+    }
+
+    /** 413 for a file over the size limit, 422 for a file the AI service refused; the message says why. */
+    @ExceptionHandler(UploadRejectedException.class)
+    ProblemDetail uploadRejected(UploadRejectedException e) {
+        return ProblemDetail.forStatusAndDetail(e.getStatus(), e.getMessage());
     }
 
     @ExceptionHandler(AiServiceException.class)

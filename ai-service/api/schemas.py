@@ -1,5 +1,6 @@
 """Request and response shapes of the AI service HTTP API."""
 
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -84,6 +85,31 @@ class Document(BaseModel):
     doc_id: str
     title: str
     chunks: int
+    source: Literal["builtin", "upload"] = "builtin"
+    pages: int | None = None
+    pages_without_text: int | None = None  # scanned pages: neither searched nor cited
+    expires_at: datetime | None = None  # uploads only
+
+
+class UploadAccepted(BaseModel):
+    job_id: str
+    doc_id: str
+    title: str
+    state: str
+
+
+class UploadJob(BaseModel):
+    """queued -> reading -> indexing -> ready, or failed (error says why and what to do)."""
+
+    id: str
+    doc_id: str
+    title: str
+    state: Literal["queued", "reading", "indexing", "ready", "failed"]
+    step: str | None
+    done: int
+    total: int
+    error: str | None
+    queue_position: int | None = None  # jobs ahead of this one, while queued
 
 
 class Health(BaseModel):
