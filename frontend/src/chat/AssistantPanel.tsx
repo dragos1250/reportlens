@@ -22,7 +22,11 @@ export function AssistantPanel({ turns, busy, activeChunkId, onAsk, onRetry, onC
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const endRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => endRef.current?.scrollIntoView?.({ block: "end" }), [turns])
+  // Braces on purpose: an effect may only return a cleanup function. Browsers now return a
+  // Promise from scrollIntoView, and returning it here crashed the panel.
+  useEffect(() => {
+    endRef.current?.scrollIntoView?.({ block: "end" })
+  }, [turns])
 
   function submit() {
     onAsk(draft.trim(), lang)

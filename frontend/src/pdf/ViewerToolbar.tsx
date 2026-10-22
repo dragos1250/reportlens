@@ -23,7 +23,9 @@ interface Props {
 
 export function ViewerToolbar({ page, pages, zoom, onPage, onZoom }: Props) {
   const [draft, setDraft] = useState(String(page))
-  useEffect(() => setDraft(String(page)), [page])
+  useEffect(() => {
+    setDraft(String(page))
+  }, [page])
 
   const total = pages ?? 1
   const zoomIndex = ZOOM_STEPS.indexOf(zoom as (typeof ZOOM_STEPS)[number])
