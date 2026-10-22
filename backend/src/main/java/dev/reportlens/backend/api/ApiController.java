@@ -12,6 +12,8 @@ import dev.reportlens.backend.conversation.Conversation;
 import dev.reportlens.backend.conversation.ConversationService;
 import dev.reportlens.backend.conversation.Message;
 import dev.reportlens.backend.conversation.Selection;
+import dev.reportlens.backend.limits.UsageLimits;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
@@ -33,9 +35,11 @@ import java.util.UUID;
 public class ApiController {
 
     private final ConversationService service;
+    private final UsageLimits limits;
 
-    public ApiController(ConversationService service) {
+    public ApiController(ConversationService service, UsageLimits limits) {
         this.service = service;
+        this.limits = limits;
     }
 
     @GetMapping("/documents")
@@ -75,12 +79,19 @@ public class ApiController {
         return service.history(id).stream().map(this::toDto).toList();
     }
 
-    /** Asks a question in a conversation; returns the assistant's answer (201). */
+    /**
+     * Asks a question in a conversation; returns the assistant's answer (201). The usage
+     * limits are checked first (429 before any LLM call), and the answer's cost is counted.
+     */
     @PostMapping("/conversations/{id}/messages")
-    public ResponseEntity<MessageDto> ask(@PathVariable UUID id, @Valid @RequestBody AskQuestion request) {
+    public ResponseEntity<MessageDto> ask(@PathVariable UUID id, @Valid @RequestBody AskQuestion request,
+                                          HttpServletRequest http) {
+        String ip = limits.clientIp(http.getRemoteAddr(), http.getHeader("X-Forwarded-For"));
+        limits.check(ip);
         Selection selection = request.selection() == null ? null
                 : new Selection(request.selection().docId(), request.selection().page(), request.selection().text());
         Message answer = service.ask(id, request.question(), request.lang(), selection);
+        limits.record(ip, answer.getCostUsd());
         return ResponseEntity.created(URI.create("/api/conversations/" + id + "/messages")).body(toDto(answer));
     }
 

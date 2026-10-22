@@ -14,7 +14,7 @@
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey?style=for-the-badge)
 
-[🎬 Demo video](#-demo) · [🚀 Live demo](#-demo) · [🏗️ Architecture](#%EF%B8%8F-architecture) · [🗺️ Roadmap](#%EF%B8%8F-roadmap)
+[🐳 Run it](#-getting-started) · [🖼️ Screenshots](#-demo) · [🏗️ Architecture](#%EF%B8%8F-architecture) · [🗺️ Roadmap](#%EF%B8%8F-roadmap)
 
 </div>
 
@@ -37,29 +37,39 @@ It is built as a **Retrieval-Augmented Generation (RAG)** system, so the assista
 - 🚫 **"Not in the report" mode**: the assistant refuses to answer when there is no supporting source
 - 🆚 **Compare two reports**: each report is searched on its own, every figure cites its report and page, and the assistant says when the financial years differ
 - 🌍 **Ask in Romanian or English**: multilingual embeddings, documents in English
-- 📊 **Built-in evaluation page**: a test set of questions with measured retrieval and answer quality
+- 📊 **Evaluation** (in progress): a hand-written test set with expected pages; results so far are in [Evaluation](#-evaluation)
 
 ## 🎬 Demo
 
+Run it on your machine with one command (see [Getting started](#-getting-started)). There is no public instance yet.
+
+Screenshots (in `docs/screenshots/`) are being added:
+
 | | |
 |---|---|
-| 🎥 **Video (60–90 s)** | _link coming soon_ |
-| 🌐 **Live demo** | _link coming soon_ |
-| 🖼️ **Screenshots** | _coming soon_ |
-
-<!-- Replace with a GIF once the UI exists: ![ReportLens demo](docs/demo.gif) -->
+| 📚 Choosing a report | _coming soon_ |
+| 📌 An answer with its citation, the passage marked in the PDF | _coming soon_ |
+| 🚫 "Not in this report" | _coming soon_ |
+| 🖍️ Select & explain | _coming soon_ |
+| 🆚 Comparing two reports, citations labelled by report | _coming soon_ |
+| 📱 Phone layout | _coming soon_ |
 
 ## 🏗️ Architecture
 
 ```mermaid
 flowchart LR
-    U[👤 User] --> F[⚛️ React + Tailwind<br/>PDF viewer & chat]
-    F --> B[☕ Spring Boot API<br/>conversations, documents, feedback]
+    U[👤 Browser] --> F[⚛️ nginx<br/>React app, proxies /api]
+    F --> B[☕ Spring Boot API<br/>conversations, usage limits]
     B --> A[🐍 FastAPI AI service<br/>retrieval & generation]
     A --> D[(🐘 PostgreSQL + pgvector)]
     B --> D
     A --> L[🤖 LLM API]
+    S[📥 setup, runs once<br/>download & index reports] --> D
 ```
+
+In Docker Compose these are five services: `db`, `setup` (one-shot), `ai-service`, `backend` and
+`frontend`. Only the frontend is published, on `127.0.0.1`; the others are reachable inside the
+Docker network only. The LLM key is passed to the `ai-service` container alone.
 
 **How a question is answered**
 
@@ -81,9 +91,41 @@ flowchart LR
 
 ## 🚀 Getting started
 
-> ⚠️ Local development setup for Windows PowerShell. A one-command Docker Compose setup comes in stage 11.
+### 🐳 With Docker (one command)
 
-Requirements: Docker Desktop, Python 3.11, Java 25, Node.js 22. Maven is not needed (`mvnw` downloads it).
+Requirements: Docker with Compose v2, and an OpenAI API key.
+
+```bash
+git clone <this repository>
+cd reportlens
+cp .env.example .env    # then set LLM_API_KEY and POSTGRES_PASSWORD (never commit .env)
+docker compose up --build
+```
+
+Then open **http://127.0.0.1:8088**.
+
+The first start builds the images, then the `setup` service downloads the two public reports
+listed in `scripts/reports.json` from their official sources (checking their sha256), splits them
+into passages, embeds them on the CPU and loads them into PostgreSQL. The other services wait for
+it. Later starts skip the steps already done. Measured on the author's Windows laptop
+(Docker Desktop), from a fresh clone: building the images took 154 s (some base images were
+already pulled), then 192 s until every service was healthy, most of it reading and embedding
+the 970 pages on the CPU. A second start took 29 s. The `ai-service` image is 2.94 GB: CPU-only
+PyTorch and the embedding model are inside, so a container starts without downloading anything.
+
+The reports and everything derived from them live in Docker volumes, never in the repository.
+`docker compose down -v` removes them.
+
+**Protections** (on the route that may call the LLM; values in `.env`): 10 questions per minute
+per client IP, an estimated LLM cost of $0.05 per IP and $1.00 overall per UTC day, questions up to
+1,000 characters and selections up to 5,000. Past a limit the API answers `429` with `Retry-After`
+and makes no LLM call. Behind nginx the client IP comes from `X-Forwarded-For`, which the backend
+trusts only from the nginx container's fixed address.
+
+### 🛠️ Development without Docker (Windows PowerShell)
+
+Requirements: Docker Desktop (for the database), Python 3.11, Java 25, Node.js 22. Maven is not
+needed (`mvnw` downloads it).
 
 **One-time setup**
 
@@ -103,9 +145,9 @@ py -3.11 -m venv .venv
 .\.venv\Scripts\python.exe -m ingestion.ingest ..\data\raw\dtag-ar-2025.pdf --doc-id dtag-ar-2025
 .\.venv\Scripts\python.exe -m retrieval.build_index --doc-id dtag-ar-2025
 
-# Database, then load passages and vectors into it
+# Database (port published on 127.0.0.1 by the dev file), then load passages and vectors into it
 cd ..
-docker compose up -d db
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d db
 cd ai-service
 .\.venv\Scripts\python.exe -m storage.load --doc-id vodafone-20f-fy26
 .\.venv\Scripts\python.exe -m storage.load --doc-id dtag-ar-2025
@@ -146,13 +188,24 @@ cd frontend; npm test; cd ..
 
 ## 📏 Evaluation
 
-Quality is measured, not assumed. A hand-written test set of questions with expected source pages is used to track:
+Quality is measured, not assumed, but the test set is still small: **10 retrieval questions
+(5 Romanian-English pairs) and 12 out-of-scope questions, on the Vodafone report only**. The
+second report (Deutsche Telekom) is not evaluated yet. The full set (30-50 questions) and a
+metrics page come in the evaluation stage. Results so far, from
+[`ai-service/NOTES.md`](ai-service/NOTES.md) and [`backend/NOTES.md`](backend/NOTES.md):
 
-| Metric | Result |
+| Measure (Vodafone Form 20-F FY26) | Result |
 |---|---|
-| 🎯 Retrieval recall@5 | _to be measured_ |
-| ✅ Answer faithfulness to source | _to be measured_ |
-| 🚫 Correct refusals on out-of-scope questions | _to be measured_ |
+| 🎯 Expected page in the top 5 passages (hit@5), hybrid search | 5/10 (English 3/5, Romanian 2/5) |
+| 🎯 Expected page in the top 20 (hit@20), hybrid search | 8/10 |
+| ✅ Answers that cite an expected page (gpt-6-luna) | 4/10 |
+| 🚫 Correct refusals on out-of-scope questions | 12/12 (guard 1, model 11) |
+| ⚠️ Wrong refusals on answerable questions | 6/10 |
+| 💵 Cost of those 22 questions | $0.003843 |
+
+The metric definitions are in [`eval/README.md`](eval/README.md). Romanian questions are the
+weak spot: the keyword search only helps when they share names, numbers or dates with the
+English text.
 
 ## 🗺️ Roadmap
 
@@ -166,8 +219,11 @@ Quality is measured, not assumed. A hand-written test set of questions with expe
 - [x] ⚛️ React UI with PDF viewer and highlighted citations
 - [x] 🖍️ Select & explain
 - [x] 🆚 Compare two reports (the formal evaluation still covers the Vodafone report only; it is extended in the evaluation stage)
-- [ ] 📏 Evaluation page and test set
-- [ ] 🚢 Docker Compose and public demo
+- [x] 🐳 Docker Compose: the whole app with one command
+- [ ] 🖼️ Screenshots in this README
+- [ ] 📏 Evaluation page and full test set
+- [ ] 📤 Upload a PDF, ingest it in the background with progress, compare two uploaded reports
+- [ ] 🌐 Public demo (only with the protections above, after the evaluation)
 
 ## 📂 Project structure
 
@@ -187,6 +243,12 @@ reportlens/
 - 📚 Reports are **not stored in this repository**; a script downloads them from their official public sources.
 - 🔑 API keys live only in environment variables on the server, never in the frontend or the repo.
 - 🤖 The assistant can make mistakes: always check the cited page.
+- 📄 **Only PDFs with a text layer.** Text is read with pdfplumber; there is no OCR.
+- 📊 **Tables stay in the running text**, row by row with their labels and numbers. Table
+  detection is off by default: on the Vodafone report it found 505 "tables", of which only 7
+  were plausible, and it lost data (see [`ai-service/NOTES.md`](ai-service/NOTES.md)).
+- 🧮 **Usage limits per IP are kept in memory** and reset when the backend restarts; the global
+  daily total is read from the database.
 - 🖨️ **Scanned pages are not covered.** Pages without a text layer are neither indexed for the assistant nor searchable with "Search the report text" (there is no OCR). In the test report (Vodafone Form 20-F FY26, 588 pages), 116 pages have no text layer and the same 116 pages have no passage in the database: an exact overlap, mostly scanned exhibits (pages 262, 341-401 and 480-581, with gaps).
 
 ## 📜 License

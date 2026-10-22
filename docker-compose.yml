@@ -1,6 +1,20 @@
-# Development database only (stage 7). The full stack is added in stage 11.
-#   docker compose up -d db
-# POSTGRES_PASSWORD has no default on purpose: set it in .env (see .env.example).
+# The whole app with one command:  docker compose up --build
+# Then open http://127.0.0.1:8088 (WEB_PORT). Settings come from .env (see .env.example).
+#
+# Start order: db -> setup (downloads and indexes the reports, then exits) -> ai-service
+# -> backend -> frontend. Only the frontend is published, on 127.0.0.1; the other
+# services are reachable inside this network only.
+#
+# Local development without containers uses only the database, with its port published:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d db
+
+x-postgres: &postgres
+  POSTGRES_HOST: db
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: ${POSTGRES_DB:-reportlens}
+  POSTGRES_USER: ${POSTGRES_USER:-reportlens}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (see .env.example)}
+
 services:
   db:
     image: pgvector/pgvector:0.8.7-pg17
@@ -8,8 +22,6 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-reportlens}
       POSTGRES_USER: ${POSTGRES_USER:-reportlens}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (see .env.example)}
-    ports:
-      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"  # reachable from this machine only
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -17,6 +29,83 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    networks: [app]
+
+  # One-shot: download the public reports listed in scripts/reports.json (sha256 checked),
+  # split, embed and load them. Steps already done are skipped, so later starts are quick.
+  setup:
+    build:
+      context: .
+      dockerfile: ai-service/Dockerfile
+    image: reportlens-ai-service
+    command: ["python", "-m", "storage.setup"]
+    environment:
+      <<: *postgres
+    volumes:
+      - reports:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+    networks: [app]
+
+  ai-service:
+    image: reportlens-ai-service
+    environment:
+      <<: *postgres
+      # The LLM key reaches this container only: never the backend, never the browser.
+      LLM_PROVIDER: ${LLM_PROVIDER:-openai}
+      LLM_MODEL: ${LLM_MODEL:-gpt-6-luna}
+      LLM_API_KEY: ${LLM_API_KEY:?Set LLM_API_KEY in .env (see .env.example)}
+      RETRIEVAL_STORE: postgres
+    volumes:
+      - reports:/app/data:ro  # the PDFs, for the viewer
+    depends_on:
+      setup:
+        condition: service_completed_successfully  # the document list is read once, at start
+    restart: unless-stopped
+    networks: [app]
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      <<: *postgres
+      AI_SERVICE_URL: http://ai-service:8000
+      LIMIT_REQUESTS_PER_MINUTE: ${LIMIT_REQUESTS_PER_MINUTE:-10}
+      LIMIT_PER_IP_DAILY_USD: ${LIMIT_PER_IP_DAILY_USD:-0.05}
+      LIMIT_GLOBAL_DAILY_USD: ${LIMIT_GLOBAL_DAILY_USD:-1.00}
+      # Only nginx (fixed address below) may tell the backend who the client is.
+      TRUSTED_PROXIES: 172.30.0.10
+    depends_on:
+      db:
+        condition: service_healthy
+      ai-service:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [app]
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "127.0.0.1:${WEB_PORT:-8088}:80"  # this machine only
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      app:
+        ipv4_address: 172.30.0.10
+
+networks:
+  app:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24  # fixed, so the proxy address above is known
 
 volumes:
   pgdata:
+  reports:  # downloaded PDFs and derived data; never in git

@@ -27,11 +27,12 @@ public final class ApiDtos {
     }
 
     /**
-     * The reader's selection; longer than the AI service's limit so a long one gets a calm answer.
+     * The reader's selection. 5,000 characters, above the AI service's 2,000, so a slightly long
+     * selection still gets a calm "too long" answer, while a huge one is refused here.
      * docId (optional): which report of a comparison it comes from; default the conversation's.
      */
     public record SelectionDto(@Size(max = 200) String docId, @Min(1) int page,
-                               @NotBlank @Size(max = 20000) String text) {
+                               @NotBlank @Size(max = 5000) String text) {
     }
 
     /**

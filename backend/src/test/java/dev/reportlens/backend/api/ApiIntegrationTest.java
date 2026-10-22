@@ -41,7 +41,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Full stack except the AI service: real PostgreSQL (Testcontainers) with the Flyway
  * schema, real controllers and JPA; the FastAPI client is a mock, so no LLM call is made.
  */
-@SpringBootTest
+@SpringBootTest(properties = {  // limits are tested in LimitsIntegrationTest
+        "reportlens.limits.requests-per-minute=1000",
+        "reportlens.limits.per-ip-daily-usd=1000",
+        "reportlens.limits.global-daily-usd=1000"})
 @AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)
 class ApiIntegrationTest {

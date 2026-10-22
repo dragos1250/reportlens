@@ -3,8 +3,11 @@ package dev.reportlens.backend.api;
 import dev.reportlens.backend.ai.AiServiceException;
 import dev.reportlens.backend.conversation.InvalidRequestException;
 import dev.reportlens.backend.conversation.NotFoundException;
+import dev.reportlens.backend.limits.LimitExceededException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -20,6 +23,14 @@ public class ApiExceptionHandler {
     @ExceptionHandler(InvalidRequestException.class)
     ProblemDetail invalid(InvalidRequestException e) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, e.getMessage());
+    }
+
+    /** 429 with Retry-After (seconds), so a client knows when to ask again. */
+    @ExceptionHandler(LimitExceededException.class)
+    ResponseEntity<ProblemDetail> limited(LimitExceededException e) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(e.getRetryAfterSeconds()))
+                .body(ProblemDetail.forStatusAndDetail(HttpStatus.TOO_MANY_REQUESTS, e.getMessage()));
     }
 
     @ExceptionHandler(AiServiceException.class)

@@ -19,6 +19,8 @@ function url(path: string): string {
 function describe(status: number, detail: string | undefined): string {
   if (status === 400) return `The request was not accepted${detail ? `: ${detail}` : "."}`
   if (status === 404) return detail ?? "Not found."
+  // Usage limits: the backend says which one and when to try again.
+  if (status === 429) return detail ?? "Too many questions. Wait a moment, then ask again."
   if (status === 502) return "The answer service is not responding. Check that the AI service is running, then retry."
   return `The server answered with an error (${status}). Retry in a moment.`
 }

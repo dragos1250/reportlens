@@ -49,6 +49,17 @@ describe("api client", () => {
     expect(sent).toEqual({ question: "Care au fost veniturile?", lang: expected })
   })
 
+  it("shows the backend's reason when a usage limit is reached", async () => {
+    server.use(
+      http.post("*/api/conversations/:id/messages", () => HttpResponse.json(
+        { detail: "The assistant's daily budget is used up. Try again tomorrow." },
+        { status: 429, headers: { "Retry-After": "3600" } },
+      )),
+    )
+    const error = await api.ask(CONVERSATION.id, "q", "auto").catch((e: unknown) => e)
+    expect(error).toMatchObject({ status: 429, message: "The assistant's daily budget is used up. Try again tomorrow." })
+  })
+
   it("sends a selection with no question for Explain this", async () => {
     let sent: unknown
     server.use(
