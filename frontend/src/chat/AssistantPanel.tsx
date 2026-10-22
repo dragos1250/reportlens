@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react"
 
-import type { Lang, Message, Passage, Selection } from "../api/types"
+import type { DocumentInfo, Lang, Message, Passage, Selection } from "../api/types"
 import { Icon } from "../components/Icon"
+import { type DocLabel, docLabels } from "../lib/reports"
 import { AnswerText, Sources } from "./Answer"
 import { Composer } from "./Composer"
 import { NotInReport } from "./NotInReport"
@@ -23,14 +24,17 @@ interface Props {
   onShowSelection: (selection: Selection) => void
   /** "Search the report text" after a refusal; the question is passed as a hint only. */
   onSearchReport: (question: string) => void
+  /** The two reports when the conversation compares them; absent for a single report. */
+  comparing?: DocumentInfo[] | null
 }
 
 const EXPLAIN_REFUSALS = new Set(["not_enough", "too_short", "too_long", "no_text"])
 
 export function AssistantPanel({
   turns, busy, activeChunkId, lang, onLang, pendingSelection, onClearSelection, onAsk, onRetry, onCite,
-  onShowSelection, onSearchReport,
+  onShowSelection, onSearchReport, comparing = null,
 }: Props) {
+  const docLabel = comparing ? docLabels(comparing) : undefined
   const [draft, setDraft] = useState("")
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const endRef = useRef<HTMLDivElement>(null)
@@ -74,7 +78,14 @@ export function AssistantPanel({
       </div>
 
       <div className="min-h-0 overflow-y-auto px-5 pt-5 pb-8" aria-live="polite">
-        {turns.length === 0 && (
+        {turns.length === 0 && comparing && (
+          <p className="m-0 font-reading text-[15px] leading-relaxed text-secondary">
+            Ask a question to compare {comparing.map((r) => docLabel!(r.docId)).join(" and ")}. Each report is
+            searched on its own, and every figure points to its report and page. The reports may cover different
+            financial years.
+          </p>
+        )}
+        {turns.length === 0 && !comparing && (
           <p className="m-0 font-reading text-[15px] leading-relaxed text-secondary">
             Ask a question about this report. Every answer points to the page it comes from; when the
             report does not say, the assistant says so. You can also select text in the report and choose
@@ -83,14 +94,15 @@ export function AssistantPanel({
         )}
         {turns.map((turn) => (
           <article key={turn.id} className="mb-6 border-b border-line pb-5 last:border-b-0">
-            {turn.selection && <SelectionQuote selection={turn.selection} onShow={onShowSelection} />}
+            {turn.selection && <SelectionQuote selection={turn.selection} onShow={onShowSelection} docLabel={docLabel} />}
             {turn.question && (
               <>
                 <h2 className="m-0 mb-1 text-xs font-medium text-secondary">You asked</h2>
                 <p className="m-0 mb-4 text-[15px] leading-normal font-semibold tracking-tight">{turn.question}</p>
               </>
             )}
-            <TurnBody turn={turn} isLast={turn === lastDone} activeChunkId={activeChunkId}
+            <TurnBody turn={turn} isLast={turn === lastDone} activeChunkId={activeChunkId} comparing={comparing}
+                      docLabel={docLabel}
                       onCite={onCite} onRetry={onRetry} onRephrase={() => rephrase(turn.question ?? "")}
                       onSearchReport={() => onSearchReport(turn.question ?? "")} />
           </article>
@@ -106,14 +118,20 @@ export function AssistantPanel({
 }
 
 /** The selected text, quoted with its page; the page jumps back to it in the report. */
-function SelectionQuote({ selection, onShow }: { selection: Selection; onShow: (selection: Selection) => void }) {
+function SelectionQuote({ selection, onShow, docLabel }: {
+  selection: Selection
+  onShow: (selection: Selection) => void
+  docLabel?: DocLabel
+}) {
+  const report = selection.docId ? docLabel?.(selection.docId) : undefined
   return (
     <div className="mb-4">
       <h2 className="m-0 mb-1.5 flex items-center gap-2 text-xs font-medium text-secondary">
         You selected
-        <button type="button" onClick={() => onShow(selection)} aria-label={`Show the selection on page ${selection.page}`}
+        <button type="button" onClick={() => onShow(selection)}
+                aria-label={`Show the selection on page ${selection.page}${report ? ` of ${report}` : ""}`}
                 className="inline-flex min-h-6 items-center rounded-[5px] border border-line-strong px-1.5 text-xs text-text tabular-nums hover:border-accent hover:text-accent max-md:min-h-8">
-          p. {selection.page}
+          {report && <span className="mr-1 text-secondary">{report}</span>}p. {selection.page}
         </button>
       </h2>
       <blockquote className="m-0 line-clamp-6 border-l-2 border-accent/60 pl-3 font-reading text-[13px] leading-snug text-secondary">
@@ -123,10 +141,12 @@ function SelectionQuote({ selection, onShow }: { selection: Selection; onShow: (
   )
 }
 
-function TurnBody({ turn, isLast, activeChunkId, onCite, onRetry, onRephrase, onSearchReport }: {
+function TurnBody({ turn, isLast, activeChunkId, comparing, docLabel, onCite, onRetry, onRephrase, onSearchReport }: {
   turn: Turn
   isLast: boolean
   activeChunkId: string | null
+  comparing: DocumentInfo[] | null
+  docLabel?: DocLabel
   onCite: (passage: Passage) => void
   onRetry: (turn: Turn) => void
   onRephrase: () => void
@@ -147,19 +167,43 @@ function TurnBody({ turn, isLast, activeChunkId, onCite, onRetry, onRephrase, on
   if (message.status === "explained") return <Explanation message={message} />
   if (message.status && EXPLAIN_REFUSALS.has(message.status)) return <CannotExplain message={message} />
   if (message.status === "not_found" || message.status === "not_in_report") {
-    return <NotInReport message={message} onPage={onCite} onRephrase={onRephrase} onSearchReport={onSearchReport} />
+    return <NotInReport message={message} onPage={onCite} onRephrase={onRephrase} onSearchReport={onSearchReport}
+                        docLabel={docLabel} />
   }
-  if (message.status !== "answered") {
+  if (message.status !== "answered" && message.status !== "partial") {
     // incomplete or invalid_output: the answer could not be completed or checked.
     return <Problem text="The answer could not be completed. Retry, or rephrase the question." onRetry={() => onRetry(turn)} />
   }
   return (
     <>
       <h3 className="sr-only">Answer</h3>
-      <AnswerText message={message} activeChunkId={activeChunkId} onCite={onCite} />
+      {message.status === "partial" && comparing && docLabel && (
+        <PartialNote message={message} comparing={comparing} docLabel={docLabel} />
+      )}
+      <AnswerText message={message} activeChunkId={activeChunkId} onCite={onCite} docLabel={docLabel} />
       <ModelLine message={message} />
-      {isLast && <Sources message={message} activeChunkId={activeChunkId} onCite={onCite} />}
+      {isLast && <Sources message={message} activeChunkId={activeChunkId} onCite={onCite} docLabel={docLabel} />}
     </>
+  )
+}
+
+/**
+ * A comparison only one report could answer: say which one is missing, calmly, before the
+ * answer. The missing report is the one the answer never cites.
+ */
+function PartialNote({ message, comparing, docLabel }: {
+  message: Message
+  comparing: DocumentInfo[]
+  docLabel: DocLabel
+}) {
+  const cited = new Set(message.citations.map((c) => c.docId))
+  const missing = comparing.filter((r) => !cited.has(r.docId)).map((r) => docLabel(r.docId))
+  if (missing.length === 0) return null
+  return (
+    <p className="m-0 mb-3 rounded-lg border border-dashed border-line-strong px-3 py-2 text-xs leading-relaxed text-secondary">
+      Only one report covers this. The passages checked in {missing.join(" and ")} do not, so there is nothing to
+      compare it with.
+    </p>
   )
 }
 

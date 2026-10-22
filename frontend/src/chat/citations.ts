@@ -26,7 +26,16 @@ export function splitAnswer(content: string, passages: Passage[]): Segment[] {
   return segments
 }
 
-/** Pages of the passages that were checked, in order, without repeats. */
-export function checkedPages(passages: Passage[]): number[] {
-  return [...new Set(passages.map((p) => p.page))].sort((a, b) => a - b)
+/** One passage per checked (document, page), in the order the documents first appear, then by page. */
+export function checkedPlaces(passages: Passage[]): Passage[] {
+  const docs = [...new Set(passages.map((p) => p.docId))]
+  const seen = new Set<string>()
+  return passages
+    .filter((p) => {
+      const key = `${p.docId}\u0000${p.page}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+    .sort((a, b) => docs.indexOf(a.docId) - docs.indexOf(b.docId) || a.page - b.page)
 }

@@ -53,7 +53,9 @@ function postJson<T>(path: string, body: unknown): Promise<T> {
 export const api = {
   documents: () => request<DocumentInfo[]>("/documents"),
 
-  startConversation: (docId: string) => postJson<Conversation>("/conversations", { docId }),
+  /** With compareDocId, every question in the conversation compares the two reports. */
+  startConversation: (docId: string, compareDocId: string | null = null) =>
+    postJson<Conversation>("/conversations", { docId, ...(compareDocId ? { compareDocId } : {}) }),
 
   /**
    * Returns the assistant's message; the question is stored by the backend too. With a

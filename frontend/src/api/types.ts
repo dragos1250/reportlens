@@ -4,9 +4,15 @@ export type Status =
   | "answered" | "not_found" | "not_in_report" | "incomplete" | "invalid_output"
   // Select & explain: the model explained / said the text is not enough; the guard refused
   | "explained" | "not_enough" | "too_short" | "too_long" | "no_text"
+  // Compare two reports: only one of them covers the question
+  | "partial"
 
-/** Text the reader selected in the PDF, with its page (Select & explain). */
+/**
+ * Text the reader selected in the PDF, with its page (Select & explain). docId: the report it
+ * comes from; absent on older messages, which means the conversation's own report.
+ */
 export interface Selection {
+  docId?: string | null
   page: number
   text: string
 }
@@ -23,6 +29,8 @@ export interface DocumentInfo {
 export interface Conversation {
   id: string
   docId: string
+  /** The second report when the conversation compares two. */
+  compareDocId: string | null
   title: string | null
   createdAt: string
 }

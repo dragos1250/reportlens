@@ -9,9 +9,17 @@ export const DOCUMENT: DocumentInfo = {
   chunks: 120,
 }
 
+/** A second report, for comparisons. */
+export const OTHER_DOCUMENT: DocumentInfo = {
+  docId: "other-report",
+  title: "Other Telecom AG - Annual Report 2025",
+  chunks: 90,
+}
+
 export const CONVERSATION: Conversation = {
   id: "11111111-1111-1111-1111-111111111111",
   docId: DOCUMENT.docId,
+  compareDocId: null,
   title: null,
   createdAt: "2026-10-22T10:00:00Z",
 }

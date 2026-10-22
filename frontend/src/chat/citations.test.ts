@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import type { Passage } from "../api/types"
-import { checkedPages, splitAnswer } from "./citations"
+import { checkedPlaces, splitAnswer } from "./citations"
 
 const passage = (marker: string, page: number): Passage => ({
   marker, page, docId: "d", chunkId: `d-p${page}`, text: `text of ${page}`, cited: true,
@@ -34,8 +34,14 @@ describe("splitAnswer", () => {
   })
 })
 
-describe("checkedPages", () => {
+describe("checkedPlaces", () => {
   it("lists each checked page once, in page order", () => {
-    expect(checkedPages([passage("P1", 195), passage("P2", 12), passage("P3", 195)])).toEqual([12, 195])
+    expect(checkedPlaces([passage("P1", 195), passage("P2", 12), passage("P3", 195)]).map((p) => p.page)).toEqual([12, 195])
+  })
+
+  it("keeps the same page of two reports apart, report by report", () => {
+    const other = (marker: string, page: number): Passage => ({ ...passage(marker, page), docId: "e" })
+    const places = checkedPlaces([passage("P1", 17), other("P2", 17), passage("P3", 9), other("P4", 3)])
+    expect(places.map((p) => `${p.docId}:${p.page}`)).toEqual(["d:9", "d:17", "e:3", "e:17"])
   })
 })

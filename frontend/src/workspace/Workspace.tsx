@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { TextContent } from "react-pdf/dist/shared/types.js"
 
 import { api } from "../api/client"
@@ -8,6 +8,7 @@ import { useConversation } from "../chat/useConversation"
 import { BrandMark } from "../components/BrandMark"
 import { ErrorBoundary } from "../components/ErrorBoundary"
 import { Icon } from "../components/Icon"
+import { shortName } from "../lib/reports"
 import { readFlag, writeFlag } from "../lib/storage"
 import { findPassage, type Match, renderItem, type TextItemLike } from "../pdf/highlight"
 import { PageRail } from "../pdf/PageRail"
@@ -22,17 +23,22 @@ const NIGHT_KEY = "reportlens.night-reading"
 
 type Tab = "report" | "assistant"
 
-/** What is highlighted on the page: a cited passage, a text search result, or a quoted selection. */
+/**
+ * What is highlighted: a cited passage, a text search result, or a quoted selection. Each
+ * belongs to one report, and is marked only while that report is shown.
+ */
 type Target =
   | { kind: "passage"; passage: Passage }
-  | { kind: "search"; hit: SearchHit }
-  | { kind: "selection"; selection: Selection }
+  | { kind: "search"; hit: SearchHit; docId: string }
+  | { kind: "selection"; selection: Selection; docId: string }
 
 function targetPage(target: Target): number {
   if (target.kind === "passage") return target.passage.page
   if (target.kind === "search") return target.hit.page
   return target.selection.page
 }
+
+const targetDoc = (target: Target) => (target.kind === "passage" ? target.passage.docId : target.docId)
 
 /** Where a quoted selection sits on its page: the exact text first, then the passage matcher. */
 function findSelection(items: TextItemLike[], selection: Selection): Match {
@@ -41,9 +47,33 @@ function findSelection(items: TextItemLike[], selection: Selection): Match {
   return findPassage(items, selection.text)
 }
 
+/** The other reports that can be compared with this one; empty if the list cannot be loaded. */
+function useOtherReports(docId: string): DocumentInfo[] {
+  const [others, setOthers] = useState<DocumentInfo[]>([])
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      try {
+        const all = await api.documents()
+        if (!cancelled) setOthers(all.filter((d) => d.docId !== docId))
+      } catch {
+        // Comparing is optional: without the list, the control is simply not offered.
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [docId])
+  return others
+}
+
 export function Workspace({ document, onClose }: { document: DocumentInfo; onClose: () => void }) {
+  const [compareWith, setCompareWith] = useState<DocumentInfo | null>(null)
+  const [viewed, setViewed] = useState<DocumentInfo>(document) // the report shown in the viewer
+  const [pageByDoc, setPageByDoc] = useState<Record<string, number>>({}) // each report keeps its place
+  const page = pageByDoc[viewed.docId] ?? 1
   const [pages, setPages] = useState<number | null>(null)
-  const [page, setPage] = useState(1)
   const [zoom, setZoom] = useState(1)
   const [night, setNight] = useState(() => readFlag(NIGHT_KEY, false))
   const [target, setTarget] = useState<Target | null>(null)
@@ -53,27 +83,30 @@ export function Workspace({ document, onClose }: { document: DocumentInfo; onClo
   const textSource = useMemo(() => (pdf ? textSourceFor(pdf) : null), [pdf])
   const textSearch = useTextSearch(textSource)
   const [tab, setTab] = useState<Tab>("report") // phones show one pane at a time
-  const conversation = useConversation(document.docId)
-  const [pageText, setPageText] = useState<{ page: number; items: TextItemLike[] } | null>(null)
+  const others = useOtherReports(document.docId)
+  const conversation = useConversation(document.docId, compareWith?.docId ?? null)
+  const [pageText, setPageText] = useState<{ docId: string; page: number; items: TextItemLike[] } | null>(null)
   // Lives here, not in the panel: "Explain this" starts from the viewer and uses the same language.
   const [lang, setLang] = useState<Lang>("auto")
   const [pendingSelection, setPendingSelection] = useState<Selection | null>(null)
   const viewerRef = useRef<HTMLDivElement>(null)
+  const comparing = compareWith ? [document, compareWith] : null
 
-  // The cited passage's place on the shown page, recomputed when the page text or the
-  // passage changes. No match: nothing is marked, the jump still happened.
+  // The target's place on the shown page, recomputed when the page text or the target
+  // changes. No match: nothing is marked, the jump still happened.
   const match = useMemo((): Match | null => {
-    if (!target || targetPage(target) !== page || pageText?.page !== page) return null
+    if (!target || targetDoc(target) !== viewed.docId || targetPage(target) !== page) return null
+    if (pageText?.docId !== viewed.docId || pageText.page !== page) return null
     if (target.kind === "passage") return findPassage(pageText.items, target.passage.text)
     if (target.kind === "selection") return findSelection(pageText.items, target.selection)
     const marks = marksForHit(pageText.items, target.hit)
     return { method: marks.size > 0 ? "exact" : "none", marks }
-  }, [target, page, pageText])
+  }, [target, viewed, page, pageText])
 
   const onGetText = useCallback((content: TextContent) => {
     // itemIndex in the text renderer counts every item, so keep the list as it is.
-    setPageText({ page, items: content.items.map((item) => ("str" in item ? item : { str: "" })) })
-  }, [page])
+    setPageText({ docId: viewed.docId, page, items: content.items.map((item) => ("str" in item ? item : { str: "" })) })
+  }, [viewed, page])
 
   const renderText = useCallback(
     ({ str, itemIndex }: { str: string; itemIndex: number }) => renderItem(str, match?.marks.get(itemIndex)),
@@ -88,40 +121,72 @@ export function Workspace({ document, onClose }: { document: DocumentInfo; onClo
         : `Couldn’t mark the passage on page ${page}; its text is in Sources.`
 
   const citedPages = conversation.turns.flatMap((turn) =>
-    turn.state === "done" ? turn.answer.passages.filter((p) => p.cited).map((p) => p.page) : [],
+    turn.state === "done"
+      ? turn.answer.passages.filter((p) => p.cited && p.docId === viewed.docId).map((p) => p.page)
+      : [],
   )
 
+  function setPage(docId: string, next: number) {
+    setPageByDoc((all) => ({ ...all, [docId]: next }))
+  }
+
   function goTo(next: number) {
-    setPage(clampPage(next, pages ?? 1))
+    setPage(viewed.docId, clampPage(next, pages ?? 1))
+  }
+
+  function onLoaded(count: number) {
+    setPages(count)
+    setPage(viewed.docId, clampPage(page, count))
+  }
+
+  /** Show another report in the viewer; what belongs to the old one (pages, text, search) is dropped. */
+  function show(report: DocumentInfo) {
+    if (report.docId === viewed.docId) return
+    closeSearch()
+    setPages(null)
+    setPdf(null)
+    setPageText(null)
+    setViewed(report)
+  }
+
+  /** Jump to a page of a report, switching the viewer to it if needed. */
+  function jump(docId: string, next: number) {
+    const report = comparing?.find((r) => r.docId === docId)
+    if (report && report.docId !== viewed.docId) {
+      show(report)
+      setPage(docId, next) // clamped once the report has loaded
+    } else {
+      goTo(next)
+    }
+    setTab("report")
   }
 
   /** A citation was clicked: always jump to its page, and remember the passage to mark. */
   function showPassage(passage: Passage) {
     setTarget({ kind: "passage", passage })
-    goTo(passage.page)
-    setTab("report")
+    jump(passage.docId, passage.page)
   }
 
   function showSelection(selection: Selection) {
-    setTarget({ kind: "selection", selection })
-    goTo(selection.page)
-    setTab("report")
+    const docId = selection.docId ?? document.docId
+    setTarget({ kind: "selection", selection, docId })
+    jump(docId, selection.page)
   }
 
   /** "Explain this": ask at once, with no question; the answer uses only the selected text. */
   function explainSelection(selection: Selection) {
-    void conversation.ask(null, lang, selection)
+    void conversation.ask(null, lang, { ...selection, docId: viewed.docId })
     setTab("assistant")
   }
 
   /** "Ask about this": keep the selection in the composer until the reader writes a question. */
   function askAboutSelection(selection: Selection) {
-    setPendingSelection(selection)
+    setPendingSelection({ ...selection, docId: viewed.docId })
     setTab("assistant")
   }
 
   function showHit(hit: SearchHit) {
-    setTarget({ kind: "search", hit })
+    setTarget({ kind: "search", hit, docId: viewed.docId })
     goTo(hit.page)
   }
 
@@ -135,6 +200,15 @@ export function Workspace({ document, onClose }: { document: DocumentInfo; onClo
     textSearch.cancel()
     setSearchOpen(false)
     setSearchHint(null)
+  }
+
+  /** Comparing starts a new conversation: the questions so far were about one report. */
+  function chooseComparison(docId: string) {
+    const next = others.find((d) => d.docId === docId) ?? null
+    setCompareWith(next)
+    setPendingSelection(null)
+    setTarget(null)
+    if (!next) show(document)
   }
 
   function toggleNight() {
@@ -151,9 +225,40 @@ export function Workspace({ document, onClose }: { document: DocumentInfo; onClo
           <BrandMark />
           <span className="max-md:sr-only">ReportLens</span>
         </button>
-        <h1 className="m-0 min-w-0 flex-1 truncate text-sm font-normal text-text">{document.title}</h1>
+        <h1 className={`m-0 min-w-0 flex-1 truncate text-sm font-normal text-text ${comparing ? "max-lg:sr-only" : ""}`}>
+          {viewed.title}
+        </h1>
+        {comparing && (
+          <div role="group" aria-label="Report shown" className="flex shrink-0 rounded-lg border border-line p-0.5 max-lg:flex-1">
+            {comparing.map((report) => (
+              <button
+                key={report.docId}
+                type="button"
+                aria-pressed={report.docId === viewed.docId}
+                onClick={() => show(report)}
+                className="min-h-10 flex-1 truncate rounded-md px-3 text-xs text-secondary aria-pressed:bg-line aria-pressed:text-text md:min-h-8"
+              >
+                {shortName(report)}
+              </button>
+            ))}
+          </div>
+        )}
+        {others.length > 0 && (
+          <label className="flex shrink-0 items-center gap-2 text-xs text-secondary">
+            <span className="max-md:sr-only">Compare with</span>
+            <select
+              value={compareWith?.docId ?? ""}
+              onChange={(event) => chooseComparison(event.target.value)}
+              aria-label="Compare with"
+              className="min-h-11 max-w-40 rounded-lg border border-line bg-app-deep px-2 text-xs text-text md:min-h-9"
+            >
+              <option value="">No comparison</option>
+              {others.map((d) => <option key={d.docId} value={d.docId}>{shortName(d)}</option>)}
+            </select>
+          </label>
+        )}
         {pages !== null && (
-          <span className="shrink-0 border-l border-line-strong pl-3 text-xs text-secondary tabular-nums">
+          <span className="shrink-0 border-l border-line-strong pl-3 text-xs text-secondary tabular-nums max-md:hidden">
             {pages} pages
           </span>
         )}
@@ -187,9 +292,12 @@ export function Workspace({ document, onClose }: { document: DocumentInfo; onClo
               )}
             </div>
             <div ref={viewerRef} className="relative grid min-h-0 min-w-0">
-              <PdfViewer fileUrl={api.pdfUrl(document.docId)} page={page} zoom={zoom} night={night} onLoaded={setPages}
-                         onDocument={setPdf} customTextRenderer={renderText} onGetTextSuccess={onGetText} notice={notice} />
-              <SelectionToolbar containerRef={viewerRef} page={page} onExplain={explainSelection} onAsk={askAboutSelection} />
+              {/* A new key per report: the viewer starts clean instead of mixing two documents. */}
+              <PdfViewer key={`viewer-${viewed.docId}`} fileUrl={api.pdfUrl(viewed.docId)} page={page} zoom={zoom} night={night}
+                         onLoaded={onLoaded} onDocument={setPdf} customTextRenderer={renderText}
+                         onGetTextSuccess={onGetText} notice={notice} />
+              <SelectionToolbar key={`toolbar-${viewed.docId}`} containerRef={viewerRef} page={page} onExplain={explainSelection}
+                                onAsk={askAboutSelection} />
             </div>
           </div>
         </section>
@@ -210,6 +318,7 @@ export function Workspace({ document, onClose }: { document: DocumentInfo; onClo
               onCite={showPassage}
               onShowSelection={showSelection}
               onSearchReport={openSearch}
+              comparing={comparing}
             />
           </ErrorBoundary>
         </div>

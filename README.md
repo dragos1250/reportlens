@@ -35,7 +35,7 @@ It is built as a **Retrieval-Augmented Generation (RAG)** system, so the assista
 - 📌 **Verifiable citations**: every answer links to the page, with the source passage highlighted
 - 🔎 **Hybrid search**: semantic search (embeddings) combined with keyword search (BM25) and re-ranking, so numbers and names are found reliably
 - 🚫 **"Not in the report" mode**: the assistant refuses to answer when there is no supporting source
-- 🆚 **Compare reports**: ask how something changed between two years
+- 🆚 **Compare two reports**: each report is searched on its own, every figure cites its report and page, and the assistant says when the financial years differ
 - 🌍 **Ask in Romanian or English**: multilingual embeddings, documents in English
 - 📊 **Built-in evaluation page**: a test set of questions with measured retrieval and answer quality
 
@@ -96,16 +96,19 @@ cd ai-service
 py -3.11 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 
-# Download the public report, split it into passages, embed them
+# Download the public reports (scripts/reports.json), split them into passages, embed them
 .\.venv\Scripts\python.exe ..\scripts\download_reports.py
-.\.venv\Scripts\python.exe -m ingestion.ingest ..\dataawodafone-20f-fy26.pdf --doc-id vodafone-20f-fy26
+.\.venv\Scripts\python.exe -m ingestion.ingest ..\data\raw\vodafone-20f-fy26.pdf --doc-id vodafone-20f-fy26
 .\.venv\Scripts\python.exe -m retrieval.build_index --doc-id vodafone-20f-fy26
+.\.venv\Scripts\python.exe -m ingestion.ingest ..\data\raw\dtag-ar-2025.pdf --doc-id dtag-ar-2025
+.\.venv\Scripts\python.exe -m retrieval.build_index --doc-id dtag-ar-2025
 
 # Database, then load passages and vectors into it
 cd ..
 docker compose up -d db
 cd ai-service
 .\.venv\Scripts\python.exe -m storage.load --doc-id vodafone-20f-fy26
+.\.venv\Scripts\python.exe -m storage.load --doc-id dtag-ar-2025
 cd ..
 ```
 
@@ -161,8 +164,8 @@ Quality is measured, not assumed. A hand-written test set of questions with expe
 - [x] 🚫 "Not in the report" guardrail
 - [x] ☕ Spring Boot API and database
 - [x] ⚛️ React UI with PDF viewer and highlighted citations
-- [ ] 🖍️ Select & explain
-- [ ] 🆚 Compare two reports
+- [x] 🖍️ Select & explain
+- [x] 🆚 Compare two reports (the formal evaluation still covers the Vodafone report only; it is extended in the evaluation stage)
 - [ ] 📏 Evaluation page and test set
 - [ ] 🚢 Docker Compose and public demo
 

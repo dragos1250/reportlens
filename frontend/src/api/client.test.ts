@@ -21,6 +21,18 @@ describe("api client", () => {
     expect(sent).toEqual({ docId: "sample-report" })
   })
 
+  it("starts a comparison with a second report", async () => {
+    let sent: unknown
+    server.use(
+      http.post("*/api/conversations", async ({ request }) => {
+        sent = await request.json()
+        return HttpResponse.json(CONVERSATION, { status: 201 })
+      }),
+    )
+    await api.startConversation("sample-report", "other-report")
+    expect(sent).toEqual({ docId: "sample-report", compareDocId: "other-report" })
+  })
+
   it.each([
     ["auto", null],
     ["ro", "ro"],

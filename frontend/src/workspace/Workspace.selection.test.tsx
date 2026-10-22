@@ -45,7 +45,7 @@ describe("Select & explain", () => {
     await userEvent.click(screen.getByRole("button", { name: /Explain this/ }))
 
     expect(await screen.findByText("The group had €9.0 billion in cash.")).toBeInTheDocument()
-    expect(sent).toEqual({ question: null, lang: null, selection: { page: 1, text: "€9.0 billion" } })
+    expect(sent).toEqual({ question: null, lang: null, selection: { docId: DOCUMENT.docId, page: 1, text: "€9.0 billion" } })
 
     await userEvent.click(screen.getByRole("button", { name: "Show the selection on page 1" }))
     act(() => viewer.props!.onGetTextSuccess({ items: TEXT, styles: {}, lang: null }))

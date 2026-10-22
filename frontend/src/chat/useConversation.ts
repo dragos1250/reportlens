@@ -20,10 +20,11 @@ export type Turn =
   | (TurnBase & { state: "error"; error: string })
 
 /**
- * Conversation with the backend for one document. The conversation is created on the
- * first question, so opening a report and leaving does not leave empty conversations.
+ * Conversation with the backend for one document, or two when comparing. The conversation
+ * is created on the first question, so opening a report and leaving does not leave empty
+ * conversations. Choosing another report to compare with starts a new one.
  */
-export function useConversation(docId: string) {
+export function useConversation(docId: string, compareDocId: string | null = null) {
   const [turns, setTurns] = useState<Turn[]>([])
   const conversationId = useRef<Promise<string> | null>(null)
   const nextId = useRef(1)
@@ -39,7 +40,7 @@ export function useConversation(docId: string) {
       conversationId.current = null
       setTurns([])
     }
-  }, [docId])
+  }, [docId, compareDocId])
 
   const run = useCallback(async (base: TurnBase) => {
     const started = generation.current
@@ -48,14 +49,14 @@ export function useConversation(docId: string) {
     }
     update({ ...base, state: "loading" })
     try {
-      conversationId.current ??= api.startConversation(docId).then((c) => c.id)
+      conversationId.current ??= api.startConversation(docId, compareDocId).then((c) => c.id)
       const answer = await api.ask(await conversationId.current, base.question, base.lang, base.selection)
       update({ ...base, state: "done", answer })
     } catch (error) {
       if (generation.current === started) conversationId.current = null // a failed start must not stick
       update({ ...base, state: "error", error: error instanceof Error ? error.message : "Something went wrong. Retry." })
     }
-  }, [docId])
+  }, [docId, compareDocId])
 
   const ask = useCallback((question: string | null, lang: Lang, selection: Selection | null = null) => {
     const base: TurnBase = { id: nextId.current++, question, selection, lang }
