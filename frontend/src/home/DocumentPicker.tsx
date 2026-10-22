@@ -13,16 +13,31 @@ type Load =
 /** First screen: choose one of the documents already indexed (upload comes later). */
 export function DocumentPicker({ onOpen }: { onOpen: (document: DocumentInfo) => void }) {
   const [load, setLoad] = useState<Load>({ state: "loading" })
+  const [attempt, setAttempt] = useState(0) // Retry bumps it, which reruns the effect
 
-  const fetchDocuments = useCallback(() => {
+  useEffect(() => {
+    // The effect itself stays synchronous (it may only return a cleanup function); the
+    // async work runs in an inner function, and `cancelled` stops it from setting state
+    // after the picker is gone or a newer attempt started.
+    let cancelled = false
+    async function fetchDocuments() {
+      try {
+        const documents = await api.documents()
+        if (!cancelled) setLoad({ state: "ready", documents })
+      } catch (error) {
+        if (!cancelled) setLoad({ state: "error", message: error instanceof Error ? error.message : "Could not load reports." })
+      }
+    }
+    fetchDocuments()
+    return () => {
+      cancelled = true
+    }
+  }, [attempt])
+
+  const retry = useCallback(() => {
     setLoad({ state: "loading" })
-    api
-      .documents()
-      .then((documents) => setLoad({ state: "ready", documents }))
-      .catch((error: Error) => setLoad({ state: "error", message: error.message }))
+    setAttempt((n) => n + 1)
   }, [])
-
-  useEffect(fetchDocuments, [fetchDocuments])
 
   return (
     <main className="relative min-h-full overflow-hidden bg-[radial-gradient(circle_at_68%_42%,rgb(86_109_132/0.12),transparent_31%)]">
@@ -48,7 +63,7 @@ export function DocumentPicker({ onOpen }: { onOpen: (document: DocumentInfo) =>
             <h2 id="documents-heading" className="mb-3 text-sm font-semibold text-text">
               Choose a report
             </h2>
-            <DocumentList load={load} onOpen={onOpen} onRetry={fetchDocuments} />
+            <DocumentList load={load} onOpen={onOpen} onRetry={retry} />
           </section>
 
           <p className="mt-6 text-xs text-secondary">

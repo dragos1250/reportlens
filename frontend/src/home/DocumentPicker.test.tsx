@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { http, HttpResponse } from "msw"
 import { describe, expect, it, vi } from "vitest"
@@ -31,5 +31,25 @@ describe("DocumentPicker", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(/error \(500\)/)
     await userEvent.click(screen.getByRole("button", { name: "Retry" }))
     expect(await screen.findByRole("button", { name: /Sample Annual Report 2026/ })).toBeInTheDocument()
+  })
+})
+
+describe("DocumentPicker unmounted while loading", () => {
+  it("ignores the late response without errors", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {})
+    let answered = false
+    server.use(http.get("*/api/documents", async () => {
+      await new Promise((resolve) => setTimeout(resolve, 30))
+      answered = true
+      return HttpResponse.json([DOCUMENT])
+    }))
+    const view = render(<DocumentPicker onOpen={vi.fn()} />)
+    expect(screen.getByText("Loading documents…")).toBeInTheDocument()
+
+    view.unmount()
+    await waitFor(() => expect(answered).toBe(true))
+    await new Promise((resolve) => setTimeout(resolve, 10)) // let the response settle
+    expect(consoleError).not.toHaveBeenCalled()
+    consoleError.mockRestore()
   })
 })
