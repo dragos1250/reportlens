@@ -223,7 +223,7 @@ English text.
 - [x] 🆚 Compare two reports (the formal evaluation still covers the Vodafone report only; it is extended in the evaluation stage)
 - [x] 🐳 Docker Compose: the whole app with one command
 - [ ] 🖼️ Screenshots in this README
-- [ ] 📏 Evaluation page and full test set, plus a check that the PDF viewer renders in a real browser
+- [ ] 📏 Evaluation page and full test set, plus a check that the PDF viewer renders in a real browser (in progress: the evaluation tooling and the 29-question dev set are done; the sealed test set and its one-time measurement follow)
 - [ ] 📤 Upload a PDF, ingest it in the background with progress, compare two uploaded reports
 - [ ] 🌐 Public demo (only with the protections above, after the evaluation)
 
