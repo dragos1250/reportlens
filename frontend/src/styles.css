@@ -46,6 +46,74 @@
   }
 }
 
+/* The hero's 3D stack of translucent pages: perspective, per-page transforms and the idle
+   float cannot be expressed as utilities, so they stay here as a few small rules. */
+@layer components {
+  .page-stack {
+    position: relative;
+    width: 420px;
+    height: 480px;
+    perspective: 1200px;
+    transform-style: preserve-3d;
+  }
+  .page-stack__shadow {
+    position: absolute;
+    inset: auto 4% 5% 16%;
+    height: 18%;
+    border-radius: 50%;
+    background: rgb(0 0 0 / 0.55);
+    filter: blur(34px);
+    transform: rotate(-8deg);
+  }
+  .page-stack__page {
+    position: absolute;
+    top: 60px;
+    left: 70px;
+    width: 270px;
+    height: 360px;
+    padding: 36px 26px;
+    border: 1px solid rgb(255 255 255 / 0.23);
+    border-radius: 8px;
+    background: linear-gradient(145deg, rgb(218 229 236 / 0.24), rgb(121 145 163 / 0.09));
+    box-shadow: 0 26px 60px rgb(0 0 0 / 0.32);
+    backdrop-filter: blur(7px);
+    animation: stack-float 7s ease-in-out infinite;
+  }
+  .page-stack__page:nth-child(2) { transform: rotate(-7deg) translate3d(-24px, 24px, -100px); opacity: 0.52; animation-delay: -0.8s; }
+  .page-stack__page:nth-child(3) { transform: rotate(-3deg) translate3d(-12px, 14px, -62px); opacity: 0.67; animation-delay: -1.6s; }
+  .page-stack__page:nth-child(4) { transform: rotate(2deg) translate3d(2px, 4px, -28px); opacity: 0.82; animation-delay: -2.4s; }
+  .page-stack__page:nth-child(5) { transform: rotate(7deg) translate3d(14px, -7px, 10px); animation-delay: -3.2s; }
+  .page-stack__line {
+    display: block;
+    height: 3px;
+    margin-bottom: 9px;
+    border-radius: 4px;
+    background: rgb(222 234 242 / 0.24);
+  }
+  .page-stack__bars {
+    display: flex;
+    align-items: end;
+    gap: 11px;
+    height: 120px;
+    margin-top: 32px;
+    border-bottom: 1px solid rgb(255 255 255 / 0.12);
+  }
+  .page-stack__bars i {
+    width: 30px;
+    border-radius: 3px 3px 0 0;
+    background: rgb(230 237 243 / 0.12);
+  }
+  .page-stack__bars i:last-child {
+    background: rgb(255 225 77 / 0.42);
+  }
+}
+
+@keyframes stack-float {
+  0%,
+  100% { margin-top: 0; }
+  50% { margin-top: -9px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
