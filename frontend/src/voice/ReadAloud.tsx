@@ -36,12 +36,14 @@ export function ReadAloud({ message, conversationId, provider }: {
     setPlaying(false)
   }
 
-  async function browser(reason: string | null) {
+  /** premiumFailure: why the premium voice did not read it, kept visible whatever happens next. */
+  async function browser(premiumFailure: string | null) {
     try {
       await speakInBrowser(text!, lang)
-      setNotice(reason)
+      setNotice(premiumFailure && `${premiumFailure} Using the browser voice.`)
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "The answer could not be read aloud.")
+      const why = error instanceof Error ? error.message : "The answer could not be read aloud."
+      setNotice(premiumFailure ? `${premiumFailure} The browser voice cannot read it either: ${why}` : why)
     }
   }
 
@@ -61,9 +63,7 @@ export function ReadAloud({ message, conversationId, provider }: {
           })
           return
         } catch (error) {
-          const reason = error instanceof Error ? error.message : "The premium voice is not available."
-          setNotice(`${reason} Using the browser voice.`)
-          await browser(`${reason} Using the browser voice.`)
+          await browser(error instanceof Error ? error.message : "The premium voice is not available.")
           return
         }
       }

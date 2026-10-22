@@ -45,6 +45,20 @@ describe("Read aloud with the browser voice", () => {
 })
 
 describe("Read aloud with ElevenLabs", () => {
+  it("keeps the premium voice's reason visible when the browser voice cannot read it either", async () => {
+    fakeSpeechSynthesis(["en-US"])  // no Romanian voice on this device
+    const detail = "The premium voice is not set up correctly on this server: ElevenLabs refused the API key " +
+      "(check that it has the Text to Speech permission)."
+    server.use(http.post("*/api/conversations/:id/messages/:messageId/speech", () =>
+      HttpResponse.json({ detail }, { status: 503 })))
+    render(<ReadAloud message={romanian} conversationId="c1" provider="elevenlabs" />)
+    await userEvent.click(screen.getByRole("button", { name: /Read the answer aloud/ }))
+
+    const status = await screen.findByRole("status")
+    expect(status).toHaveTextContent("ElevenLabs refused the API key")
+    expect(status).toHaveTextContent("The browser voice cannot read it either: No Romanian voice installed")
+  })
+
   it("asks the server for the answer by id, sends no text, and plays the audio", async () => {
     fakeSpeechSynthesis(["ro-RO"])
     const audio = fakeAudio()

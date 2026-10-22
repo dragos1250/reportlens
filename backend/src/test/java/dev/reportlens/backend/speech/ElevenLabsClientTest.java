@@ -6,6 +6,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -48,13 +49,28 @@ class ElevenLabsClientTest {
     }
 
     @Test
-    void aRefusalOrOutageBecomesAClearUnavailableMessage() {
+    void anOutageBecomesAClearUnavailableMessage() {
         server.expect(requestTo("http://tts.test/v1/text-to-speech/voice1?output_format=mp3_44100_128"))
-                .andRespond(withStatus(HttpStatus.UNAUTHORIZED));
+                .andRespond(withStatus(HttpStatus.BAD_GATEWAY));
 
         assertThatThrownBy(() -> client.speak("x", "en"))
                 .isInstanceOf(SpeechRefusedException.class)
                 .hasMessage("The premium voice is not available right now.");
+    }
+
+    @Test
+    void aRefusedKeySaysWhatToCheckAndTheReasonIsRead() {
+        String body = "{\"detail\": {\"status\": \"missing_permissions\", \"message\": \"The API key you used is "
+                + "missing the permission text_to_speech to execute this operation.\"}}";
+        server.expect(requestTo("http://tts.test/v1/text-to-speech/voice1?output_format=mp3_44100_128"))
+                .andRespond(withStatus(HttpStatus.UNAUTHORIZED).contentType(MediaType.APPLICATION_JSON).body(body));
+
+        assertThatThrownBy(() -> client.speak("x", "en"))
+                .isInstanceOf(SpeechRefusedException.class)
+                .hasMessageContaining("ElevenLabs refused the API key")
+                .hasMessageContaining("Text to Speech permission");
+        assertThat(ElevenLabsClient.reason(new HttpClientErrorException(
+                HttpStatus.UNAUTHORIZED, "Unauthorized", body.getBytes(), null))).isEqualTo("missing_permissions");
     }
 
     @Test

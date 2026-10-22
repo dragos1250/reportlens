@@ -9,16 +9,20 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Text to speech with ElevenLabs: POST /v1/text-to-speech/{voice_id}, key in the xi-api-key
  * header, MP3 back. Only the text to read is sent. The key is never logged: a failure is
- * logged with its HTTP status only.
+ * logged with its HTTP status and ElevenLabs' reason code (e.g. missing_permissions).
  */
 public class ElevenLabsClient {
 
     private static final Logger log = LoggerFactory.getLogger(ElevenLabsClient.class);
     static final String UNAVAILABLE = "The premium voice is not available right now.";
+    static final String REFUSED_KEY = "The premium voice is not set up correctly on this server: ElevenLabs refused "
+            + "the API key (check that it has the Text to Speech permission).";
 
     private final RestClient http;
     private final SpeechProperties props;
@@ -43,11 +47,22 @@ public class ElevenLabsClient {
             }
             return audio;
         } catch (RestClientResponseException e) {
-            log.warn("ElevenLabs answered HTTP {}", e.getStatusCode().value());
-            throw new SpeechRefusedException(HttpStatus.SERVICE_UNAVAILABLE, UNAVAILABLE);
+            int status = e.getStatusCode().value();
+            // ElevenLabs says why in detail.status (e.g. missing_permissions); it never contains the key.
+            log.warn("ElevenLabs answered HTTP {} ({})", status, reason(e));
+            throw new SpeechRefusedException(HttpStatus.SERVICE_UNAVAILABLE,
+                    status == 401 || status == 403 ? REFUSED_KEY : UNAVAILABLE);
         } catch (RestClientException e) {
             log.warn("ElevenLabs could not be reached: {}", e.getClass().getSimpleName());
             throw new SpeechRefusedException(HttpStatus.SERVICE_UNAVAILABLE, UNAVAILABLE);
         }
+    }
+
+    private static final Pattern STATUS = Pattern.compile("\"status\"\\s*:\\s*\"([a-z_]{1,60})\"");
+
+    /** The machine-readable reason from ElevenLabs' error body, or "no reason given". */
+    static String reason(RestClientResponseException e) {
+        Matcher m = STATUS.matcher(e.getResponseBodyAsString());
+        return m.find() ? m.group(1) : "no reason given";
     }
 }
