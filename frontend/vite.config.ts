@@ -6,6 +6,8 @@ import { defineConfig } from "vite"
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
+    // IPv4 like every other service here: on Windows "localhost" made Vite listen on ::1 only.
+    host: "127.0.0.1",
     port: 5173,
     strictPort: true,
     // The browser only talks to this dev server: /api goes on to Spring Boot, so there
