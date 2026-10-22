@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react"
 
 import type { DocumentInfo, Lang, Message, Passage, Selection } from "../api/types"
 import { Icon } from "../components/Icon"
+import { formatUsd } from "../lib/cost"
 import { type DocLabel, docLabels } from "../lib/reports"
 import { ReadAloud, type VoiceProvider } from "../voice/ReadAloud"
 import { AnswerText, Sources } from "./Answer"
@@ -282,7 +283,7 @@ function ModelLine({ message }: { message: Message }) {
   return (
     <p className="m-0 mt-2 text-xs text-secondary">
       {message.model}
-      {message.costUsd !== null && ` · $${message.costUsd.toFixed(4)}`}
+      {message.costUsd !== null && ` · ${formatUsd(message.costUsd)}`}
     </p>
   )
 }
