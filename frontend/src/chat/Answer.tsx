@@ -27,7 +27,7 @@ export function CitationChip({ passage, activeChunkId, onCite }: CiteProps & { p
 /** The answer text with clickable citations. */
 export function AnswerText({ message, activeChunkId, onCite }: CiteProps & { message: Message }) {
   return (
-    <p className="m-0 font-reading text-base leading-relaxed text-[#dbe3e8]">
+    <p className="m-0 font-reading text-base leading-relaxed text-answer">
       {splitAnswer(message.content, message.passages).map((segment, i) =>
         segment.kind === "text" ? (
           <span key={i}>{segment.text}</span>

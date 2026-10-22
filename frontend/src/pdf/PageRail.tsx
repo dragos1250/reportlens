@@ -36,7 +36,7 @@ export function PageRail({ pages, current, cited, onPage }: Props) {
       >
         {tickPages(pages).map((page) => (
           <span key={`t${page}`} aria-hidden="true" data-testid="rail-tick"
-                className="absolute left-1/2 h-px w-2 -translate-x-1/2 bg-[#40505d]" style={{ top: top(page) }} />
+                className="absolute left-1/2 h-px w-2 -translate-x-1/2 bg-rail-tick" style={{ top: top(page) }} />
         ))}
         {citedPages.map((page) => (
           <span key={`c${page}`} aria-hidden="true" data-testid="rail-cited"

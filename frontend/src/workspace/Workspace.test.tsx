@@ -67,3 +67,22 @@ describe("Workspace citations", () => {
     expect(screen.getByRole("button", { name: /Jump to page: page 1 of 588, 1 cited/ })).toBeInTheDocument()
   })
 })
+
+describe("Workspace on a phone", () => {
+  it("switches between Report and Assistant, and a citation opens the Report tab", async () => {
+    render(<Workspace document={DOCUMENT} onClose={vi.fn()} />)
+    const reportTab = screen.getByRole("tab", { name: "Report" })
+    const assistantTab = screen.getByRole("tab", { name: "Assistant" })
+    expect(reportTab).toHaveAttribute("aria-selected", "true")
+
+    await userEvent.click(assistantTab)
+    expect(assistantTab).toHaveAttribute("aria-selected", "true")
+    expect(document.getElementById("pane-report")).toHaveClass("hidden")
+
+    act(() => viewer.props!.onLoaded(588))
+    await askAndCite()
+    expect(reportTab).toHaveAttribute("aria-selected", "true")
+    expect(document.getElementById("pane-assistant")).toHaveClass("hidden")
+    expect(viewer.props!.page).toBe(17)
+  })
+})

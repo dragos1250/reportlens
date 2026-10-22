@@ -19,6 +19,10 @@
   --color-line: rgb(230 237 243 / 0.11);
   --color-line-strong: rgb(230 237 243 / 0.18);
   --color-paper: #e8e3d7;
+  --color-answer: #dbe3e8; /* answer text, a little softer than text */
+  --color-composer: #111a24;
+  --color-rail-tick: #40505d;
+  --color-switch-track: #283747;
 
   --font-ui: "Schibsted Grotesk Variable", system-ui, sans-serif;
   --font-reading: "Source Serif 4 Variable", Georgia, serif;

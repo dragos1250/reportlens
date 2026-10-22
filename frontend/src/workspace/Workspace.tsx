@@ -15,12 +15,15 @@ import { clampPage, ViewerToolbar } from "../pdf/ViewerToolbar"
 
 const NIGHT_KEY = "reportlens.night-reading"
 
+type Tab = "report" | "assistant"
+
 export function Workspace({ document, onClose }: { document: DocumentInfo; onClose: () => void }) {
   const [pages, setPages] = useState<number | null>(null)
   const [page, setPage] = useState(1)
   const [zoom, setZoom] = useState(1)
   const [night, setNight] = useState(() => readFlag(NIGHT_KEY, false))
   const [active, setActive] = useState<Passage | null>(null)
+  const [tab, setTab] = useState<Tab>("report") // phones show one pane at a time
   const conversation = useConversation(document.docId)
   const [pageText, setPageText] = useState<{ page: number; items: TextItemLike[] } | null>(null)
 
@@ -57,6 +60,7 @@ export function Workspace({ document, onClose }: { document: DocumentInfo; onClo
   function showPassage(passage: Passage) {
     setActive(passage)
     goTo(passage.page)
+    setTab("report")
   }
 
   function toggleNight() {
@@ -66,7 +70,7 @@ export function Workspace({ document, onClose }: { document: DocumentInfo; onClo
   }
 
   return (
-    <div className="grid h-svh grid-rows-[56px_1fr] overflow-hidden md:grid-rows-[64px_1fr]">
+    <div className="grid h-svh grid-rows-[56px_1fr_58px] overflow-hidden md:grid-rows-[64px_1fr]">
       <header className="flex items-center gap-3 border-b border-line bg-app-deep pr-2 md:pr-4">
         <button type="button" onClick={onClose} aria-label="Back to reports"
                 className="flex h-full items-center gap-2 border-r border-line px-3 text-sm font-semibold md:px-6">
@@ -88,14 +92,15 @@ export function Workspace({ document, onClose }: { document: DocumentInfo; onClo
         >
           <Icon name="moon" size={16} />
           <span className="max-md:sr-only">Night reading</span>
-          <span aria-hidden="true" className="relative h-3.5 w-6 rounded-full bg-[#283747]">
+          <span aria-hidden="true" className="relative h-3.5 w-6 rounded-full bg-switch-track">
             <span className={`absolute top-[3px] size-2 rounded-full transition-[left] ${night ? "left-[13px] bg-accent" : "left-[3px] bg-secondary"}`} />
           </span>
         </button>
       </header>
 
       <div className="grid min-h-0 md:grid-cols-[minmax(0,1fr)_440px]">
-        <section aria-label="Report" className="grid min-h-0 grid-cols-[28px_1fr] md:grid-cols-[42px_1fr]">
+        <section id="pane-report" aria-label="Report"
+                 className={`min-h-0 grid-cols-[28px_1fr] md:grid md:grid-cols-[42px_1fr] ${tab === "report" ? "grid" : "hidden"}`}>
           <PageRail pages={pages} current={page} cited={citedPages} onPage={goTo} />
           <div className="grid min-h-0 min-w-0 grid-rows-[48px_1fr] bg-viewer">
             <ViewerToolbar page={page} pages={pages} zoom={zoom} onPage={goTo} onZoom={setZoom} />
@@ -103,6 +108,7 @@ export function Workspace({ document, onClose }: { document: DocumentInfo; onClo
                        customTextRenderer={renderText} onGetTextSuccess={onGetText} notice={notice} />
           </div>
         </section>
+        <div id="pane-assistant" className={`min-h-0 md:grid ${tab === "assistant" ? "grid" : "hidden"}`}>
         <AssistantPanel
           turns={conversation.turns}
           busy={conversation.busy}
@@ -111,6 +117,23 @@ export function Workspace({ document, onClose }: { document: DocumentInfo; onClo
           onRetry={conversation.retry}
           onCite={showPassage}
         />
+        </div>
+      </div>
+
+      <div role="tablist" aria-label="Workspace" className="grid grid-cols-2 border-t border-line bg-app-deep md:hidden">
+        {(["report", "assistant"] as const).map((name) => (
+          <button
+            key={name}
+            type="button"
+            role="tab"
+            aria-selected={tab === name}
+            aria-controls={`pane-${name}`}
+            onClick={() => setTab(name)}
+            className="relative min-h-11 text-sm text-secondary aria-selected:text-text aria-selected:before:absolute aria-selected:before:inset-x-[28%] aria-selected:before:-top-px aria-selected:before:h-0.5 aria-selected:before:bg-accent"
+          >
+            {name === "report" ? "Report" : "Assistant"}
+          </button>
+        ))}
       </div>
     </div>
   )

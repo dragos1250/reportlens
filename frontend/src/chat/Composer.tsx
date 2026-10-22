@@ -37,7 +37,7 @@ export function Composer({ draft, lang, busy, textareaRef, onDraft, onLang, onSu
   return (
     <form
       onSubmit={submit}
-      className="m-3.5 mt-0 rounded-xl border border-line-strong bg-[#111a24] px-3 pt-3 pb-2 shadow-[0_-12px_30px_rgb(15_23_32/0.55)] focus-within:border-accent/40"
+      className="m-3.5 mt-0 rounded-xl border border-line-strong bg-composer px-3 pt-3 pb-2 shadow-[0_-12px_30px_rgb(15_23_32/0.55)] focus-within:border-accent/40"
     >
       <label htmlFor="question" className="sr-only">Ask about the report</label>
       <textarea
