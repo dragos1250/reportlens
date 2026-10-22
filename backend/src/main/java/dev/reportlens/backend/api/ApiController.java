@@ -60,7 +60,7 @@ public class ApiController {
 
     @PostMapping("/conversations")
     public ResponseEntity<ConversationDto> start(@Valid @RequestBody StartConversation request) {
-        Conversation conversation = service.start(request.docId(), request.title());
+        Conversation conversation = service.start(request.docId(), request.compareDocId(), request.title());
         return ResponseEntity.created(URI.create("/api/conversations/" + conversation.getId()))
                 .body(toDto(conversation));
     }
@@ -79,13 +79,13 @@ public class ApiController {
     @PostMapping("/conversations/{id}/messages")
     public ResponseEntity<MessageDto> ask(@PathVariable UUID id, @Valid @RequestBody AskQuestion request) {
         Selection selection = request.selection() == null ? null
-                : new Selection(request.selection().page(), request.selection().text());
+                : new Selection(request.selection().docId(), request.selection().page(), request.selection().text());
         Message answer = service.ask(id, request.question(), request.lang(), selection);
         return ResponseEntity.created(URI.create("/api/conversations/" + id + "/messages")).body(toDto(answer));
     }
 
     private static ConversationDto toDto(Conversation c) {
-        return new ConversationDto(c.getId(), c.getDocId(), c.getTitle(), c.getCreatedAt());
+        return new ConversationDto(c.getId(), c.getDocId(), c.getCompareDocId(), c.getTitle(), c.getCreatedAt());
     }
 
     private MessageDto toDto(Message m) {
@@ -95,7 +95,7 @@ public class ApiController {
                 .map(p -> new PassageDto(p.marker(), p.docId(), p.page(), p.chunkId(), p.text(), p.cited())).toList();
         Selection s = m.getSelection();
         return new MessageDto(m.getId(), m.getRole(), m.getContent(), m.getLang(), m.getStatus(), citations,
-                passages, m.getCostUsd(), m.getModel(), s == null ? null : new SelectionDto(s.page(), s.text()),
+                passages, m.getCostUsd(), m.getModel(), s == null ? null : new SelectionDto(s.docId(), s.page(), s.text()),
                 m.getCreatedAt());
     }
 }

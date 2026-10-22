@@ -1,6 +1,7 @@
 package dev.reportlens.backend.api;
 
 import dev.reportlens.backend.ai.AiServiceException;
+import dev.reportlens.backend.conversation.InvalidRequestException;
 import dev.reportlens.backend.conversation.NotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -14,6 +15,11 @@ public class ApiExceptionHandler {
     @ExceptionHandler(NotFoundException.class)
     ProblemDetail notFound(NotFoundException e) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, e.getMessage());
+    }
+
+    @ExceptionHandler(InvalidRequestException.class)
+    ProblemDetail invalid(InvalidRequestException e) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, e.getMessage());
     }
 
     @ExceptionHandler(AiServiceException.class)

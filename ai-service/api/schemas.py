@@ -18,6 +18,16 @@ class AskRequest(BaseModel):
     translate_query: bool = False
 
 
+class CompareRequest(BaseModel):
+    """Compare two reports: each is searched separately and the answer cites both."""
+
+    question: str = Field(min_length=1, max_length=1000)
+    doc_ids: list[str] = Field(min_length=2, max_length=2)
+    lang: str | None = Field(default=None, pattern=r"^[a-z]{2}$")
+    method: Method = "hybrid"
+    translate_query: bool = False
+
+
 class Passage(BaseModel):
     marker: str  # "P1".. as sent to the model
     doc_id: str
@@ -60,6 +70,14 @@ class AskResponse(BaseModel):
     usage: Usage | None
     cost_usd: float | None
     timings: Timings
+
+
+class CompareResponse(AskResponse):
+    # answered (cites both) | partial (one report only) | not_found | not_in_report (guard, both)
+    # | incomplete | invalid_output. best_score is None: see best_scores.
+    doc_ids: list[str]
+    missing_doc_ids: list[str]  # reports that do not cover the question (partial, not_in_report)
+    best_scores: dict[str, float]
 
 
 class Document(BaseModel):

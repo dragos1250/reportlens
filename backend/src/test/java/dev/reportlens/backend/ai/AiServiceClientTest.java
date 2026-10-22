@@ -11,6 +11,7 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 import java.io.ByteArrayOutputStream;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -88,6 +89,32 @@ class AiServiceClientTest {
         assertThat(response.status()).isEqualTo("explained");
         assertThat(response.page()).isEqualTo(25);
         assertThat(response.costUsd()).isEqualTo(0.00007);
+        server.verify();
+    }
+
+    @Test
+    void compareSendsBothDocumentIdsAndReadsTheMissingOnes() {
+        server.expect(requestTo("http://ai.test/compare"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(content().json("""
+                        {"question": "Revenue?", "doc_ids": ["vodafone-20f-fy26", "dtag-ar-2025"], "lang": null}
+                        """))
+                .andRespond(withSuccess("""
+                        {"status": "partial", "answer": "x [dtag-ar-2025, p. 44].", "answer_marked": "x [P1].",
+                         "question": "Revenue?", "search_query": "Revenue?", "best_score": null,
+                         "citations": [{"marker": "P1", "doc_id": "dtag-ar-2025", "page": 44, "chunk_id": "c"}],
+                         "passages": [], "problems": [], "model": "gpt-6-luna", "usage": null, "cost_usd": 0.0002,
+                         "timings": {"retrieval_seconds": 0.2, "llm_seconds": 2.0},
+                         "doc_ids": ["vodafone-20f-fy26", "dtag-ar-2025"], "missing_doc_ids": ["vodafone-20f-fy26"],
+                         "best_scores": {"vodafone-20f-fy26": 0.7, "dtag-ar-2025": 0.85}}
+                        """, MediaType.APPLICATION_JSON));
+
+        AiDtos.CompareResponse response = client.compare(new AiDtos.CompareRequest(
+                "Revenue?", List.of("vodafone-20f-fy26", "dtag-ar-2025"), null));
+
+        assertThat(response.status()).isEqualTo("partial");
+        assertThat(response.missingDocIds()).containsExactly("vodafone-20f-fy26");
+        assertThat(response.citations().getFirst().docId()).isEqualTo("dtag-ar-2025");
         server.verify();
     }
 

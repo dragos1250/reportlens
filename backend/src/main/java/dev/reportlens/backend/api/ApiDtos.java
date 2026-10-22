@@ -21,11 +21,17 @@ public final class ApiDtos {
     public record DocumentDto(String docId, String title, int chunks) {
     }
 
-    public record StartConversation(@NotBlank @Size(max = 200) String docId, @Size(max = 200) String title) {
+    /** compareDocId (optional): the second report; every question then compares the two. */
+    public record StartConversation(@NotBlank @Size(max = 200) String docId, @Size(max = 200) String compareDocId,
+                                    @Size(max = 200) String title) {
     }
 
-    /** The reader's selection; longer than the AI service's limit so a long one gets a calm answer. */
-    public record SelectionDto(@Min(1) int page, @NotBlank @Size(max = 20000) String text) {
+    /**
+     * The reader's selection; longer than the AI service's limit so a long one gets a calm answer.
+     * docId (optional): which report of a comparison it comes from; default the conversation's.
+     */
+    public record SelectionDto(@Size(max = 200) String docId, @Min(1) int page,
+                               @NotBlank @Size(max = 20000) String text) {
     }
 
     /**
@@ -43,7 +49,8 @@ public final class ApiDtos {
         }
     }
 
-    public record ConversationDto(UUID id, String docId, String title, OffsetDateTime createdAt) {
+    public record ConversationDto(UUID id, String docId, String compareDocId, String title,
+                                  OffsetDateTime createdAt) {
     }
 
     public record CitationDto(String marker, String docId, int page, String chunkId) {

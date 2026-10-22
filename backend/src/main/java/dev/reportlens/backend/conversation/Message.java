@@ -54,6 +54,9 @@ public class Message {
 
     private String model;
 
+    @Column(name = "selection_doc_id")
+    private String selectionDocId;
+
     @Column(name = "selection_page")
     private Integer selectionPage;
 
@@ -93,6 +96,7 @@ public class Message {
     /** Marks this message as part of a Select & explain turn. */
     public Message withSelection(Selection selection) {
         if (selection != null) {
+            this.selectionDocId = selection.docId();
             this.selectionPage = selection.page();
             this.selectionText = selection.text();
         }
@@ -100,7 +104,7 @@ public class Message {
     }
 
     public Selection getSelection() {
-        return selectionPage == null ? null : new Selection(selectionPage, selectionText);
+        return selectionPage == null ? null : new Selection(selectionDocId, selectionPage, selectionText);
     }
 
     public Long getId() {

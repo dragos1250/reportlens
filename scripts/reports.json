@@ -5,5 +5,12 @@
     "url": "https://www.vodafone.com/~/media/Files/V/vodafone/corp/documents/performance/financial-results/2026/vodafone-form-20-f-2026.pdf",
     "source_page": "https://www.vodafone.com/investors/performance-and-reports/annual-reporting",
     "sha256": "8682298d742f6f3e0a30bbfd61ddde2620106f63f88ea414b77be75c81812097"
+  },
+  {
+    "doc_id": "dtag-ar-2025",
+    "title": "Deutsche Telekom AG - Annual Report 2025 (year ended 31 December 2025)",
+    "url": "https://report.telekom.com/annual-report-2025/_assets/downloads/entire-dtag-ar25.pdf",
+    "source_page": "https://report.telekom.com/annual-report-2025/services/downloads.html",
+    "sha256": "de5d9b0705793c4bf0b994b52ecc242800d79ee18736958dbff32aade7b79a5c"
   }
 ]

@@ -16,6 +16,20 @@ public final class AiDtos {
     public record AskRequest(String question, @JsonProperty("doc_id") String docId, String lang) {
     }
 
+    /** Compare two reports: each is searched separately; the answer cites both. */
+    public record CompareRequest(String question, @JsonProperty("doc_ids") List<String> docIds, String lang) {
+    }
+
+    /**
+     * status: answered | partial | not_found | not_in_report | incomplete | invalid_output.
+     * {@code missingDocIds}: the reports that do not cover the question.
+     */
+    public record CompareResponse(String status, String answer, @JsonProperty("answer_marked") String answerMarked,
+                                  List<Citation> citations, List<Passage> passages, String model,
+                                  @JsonProperty("cost_usd") Double costUsd,
+                                  @JsonProperty("missing_doc_ids") List<String> missingDocIds) {
+    }
+
     /** Select & explain: only the selected text is sent, no search. */
     public record ExplainRequest(@JsonProperty("doc_id") String docId, int page, String text, String question,
                                  String lang) {

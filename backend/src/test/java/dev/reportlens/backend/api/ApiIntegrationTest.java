@@ -47,6 +47,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class ApiIntegrationTest {
 
     private static final String DOC = "vodafone-20f-fy26";
+    private static final String OTHER = "dtag-ar-2025";
 
     @Autowired
     private MockMvc mvc;
@@ -59,7 +60,8 @@ class ApiIntegrationTest {
 
     @BeforeEach
     void knownDocuments() {
-        when(ai.documents()).thenReturn(List.of(new AiDtos.Document(DOC, "Vodafone 20-F FY26", 2549)));
+        when(ai.documents()).thenReturn(List.of(new AiDtos.Document(DOC, "Vodafone 20-F FY26", 2549),
+                new AiDtos.Document(OTHER, "Deutsche Telekom Annual Report 2025", 2245)));
     }
 
     private String startConversation() throws Exception {
@@ -68,6 +70,80 @@ class ApiIntegrationTest {
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         return json.readTree(body).get("id").asString();
+    }
+
+    private String startComparison() throws Exception {
+        String body = mvc.perform(post("/api/conversations").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"docId\": \"" + DOC + "\", \"compareDocId\": \"" + OTHER + "\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.compareDocId").value(OTHER))
+                .andReturn().getResponse().getContentAsString();
+        return json.readTree(body).get("id").asString();
+    }
+
+    @Test
+    void aComparisonAsksBothReportsAndKeepsCitationsFromEach() throws Exception {
+        when(ai.compare(new AiDtos.CompareRequest("Revenue?", List.of(DOC, OTHER), null)))
+                .thenReturn(new AiDtos.CompareResponse("answered", "rendered", "Vodafone [P1]; Telekom [P6].",
+                        List.of(new AiDtos.Citation("P1", DOC, 17, "v-c"), new AiDtos.Citation("P6", OTHER, 44, "d-c")),
+                        List.of(), "gpt-6-luna", 0.0002, List.of()));
+        String id = startComparison();
+
+        mvc.perform(post("/api/conversations/" + id + "/messages").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"question\": \"Revenue?\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("answered"))
+                .andExpect(jsonPath("$.content").value("Vodafone [P1]; Telekom [P6]."))
+                .andExpect(jsonPath("$.citations[0].docId").value(DOC))
+                .andExpect(jsonPath("$.citations[1].docId").value(OTHER));
+        verify(ai, never()).ask(any());
+    }
+
+    @Test
+    void aPartialComparisonIsPassedOn() throws Exception {
+        when(ai.compare(any())).thenReturn(new AiDtos.CompareResponse("partial", "rendered",
+                "Telekom [P1]; the Vodafone passages do not cover it.",
+                List.of(new AiDtos.Citation("P1", OTHER, 44, "d-c")), List.of(), "gpt-6-luna", 0.0001, List.of(DOC)));
+        String id = startComparison();
+
+        mvc.perform(post("/api/conversations/" + id + "/messages").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"question\": \"Spectrum auctions?\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("partial"));
+    }
+
+    @Test
+    void aComparisonNeedsTwoKnownDifferentReports() throws Exception {
+        mvc.perform(post("/api/conversations").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"docId\": \"" + DOC + "\", \"compareDocId\": \"" + DOC + "\"}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post("/api/conversations").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"docId\": \"" + DOC + "\", \"compareDocId\": \"missing\"}"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void aSelectionInTheSecondReportIsExplainedFromThatReport() throws Exception {
+        when(ai.explain(new AiDtos.ExplainRequest(OTHER, 44, SELECTED, null, null)))
+                .thenReturn(new AiDtos.ExplainResponse("explained", "Net revenue grew.", 44, SELECTED, "gpt-6-luna", 0.00005));
+        String id = startComparison();
+
+        mvc.perform(post("/api/conversations/" + id + "/messages").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"selection\": {\"docId\": \"" + OTHER + "\", \"page\": 44, \"text\": \""
+                                + SELECTED + "\"}}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.selection.docId").value(OTHER));
+    }
+
+    @Test
+    void aSelectionFromAnotherReportIs400() throws Exception {
+        String id = startConversation();
+        mvc.perform(post("/api/conversations/" + id + "/messages").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"selection\": {\"docId\": \"" + OTHER + "\", \"page\": 4, \"text\": \""
+                                + SELECTED + "\"}}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("the selection is not from a document of this conversation"));
+        verify(ai, never()).explain(any());
     }
 
     @Test

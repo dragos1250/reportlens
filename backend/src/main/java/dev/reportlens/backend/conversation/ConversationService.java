@@ -40,11 +40,21 @@ public class ConversationService {
     }
 
     public Conversation start(String docId, String title) {
-        boolean known = ai.documents().stream().anyMatch(d -> d.docId().equals(docId));
-        if (!known) {
-            throw new NotFoundException("unknown document: " + docId);
+        return start(docId, null, title);
+    }
+
+    /** With compareDocId, every question in the conversation compares the two reports. */
+    public Conversation start(String docId, String compareDocId, String title) {
+        List<String> known = ai.documents().stream().map(AiDtos.Document::docId).toList();
+        for (String id : compareDocId == null ? List.of(docId) : List.of(docId, compareDocId)) {
+            if (!known.contains(id)) {
+                throw new NotFoundException("unknown document: " + id);
+            }
         }
-        return conversations.save(new Conversation(docId, title));
+        if (docId.equals(compareDocId)) {
+            throw new InvalidRequestException("compare needs two different documents");
+        }
+        return conversations.save(new Conversation(docId, compareDocId, title));
     }
 
     public List<Conversation> list() {
@@ -74,6 +84,9 @@ public class ConversationService {
             return explain(find(conversationId), question, lang, selection);
         }
         Conversation conversation = find(conversationId);
+        if (conversation.getCompareDocId() != null) {
+            return compare(conversation, question, lang);
+        }
         messages.save(Message.question(conversation, question, lang));
         AiDtos.AskResponse response = ai.ask(new AiDtos.AskRequest(question, conversation.getDocId(), lang));
         BigDecimal cost = response.costUsd() == null ? null : BigDecimal.valueOf(response.costUsd());
@@ -84,15 +97,31 @@ public class ConversationService {
                 cost, response.model()));
     }
 
+    /** The answer cites both reports; the status is "partial" when only one covers the question. */
+    private Message compare(Conversation conversation, String question, String lang) {
+        messages.save(Message.question(conversation, question, lang));
+        AiDtos.CompareResponse response = ai.compare(new AiDtos.CompareRequest(question, conversation.docIds(), lang));
+        BigDecimal cost = response.costUsd() == null ? null : BigDecimal.valueOf(response.costUsd());
+        String answer = response.answerMarked() != null ? response.answerMarked() : response.answer();
+        return messages.save(Message.answer(conversation, lang, answer, response.status(),
+                json.writeValueAsString(response.citations()), json.writeValueAsString(response.passages()),
+                cost, response.model()));
+    }
+
     private Message explain(Conversation conversation, String question, String lang, Selection selection) {
+        String docId = selection.docId() == null ? conversation.getDocId() : selection.docId();
+        if (!conversation.docIds().contains(docId)) {
+            throw new InvalidRequestException("the selection is not from a document of this conversation");
+        }
         String asked = question == null || question.isBlank() ? null : question.strip();
-        messages.save(Message.question(conversation, asked != null ? asked : EXPLAIN_THIS, lang).withSelection(selection));
+        messages.save(Message.question(conversation, asked != null ? asked : EXPLAIN_THIS, lang)
+                .withSelection(new Selection(docId, selection.page(), selection.text())));
         AiDtos.ExplainResponse response = ai.explain(new AiDtos.ExplainRequest(
-                conversation.getDocId(), selection.page(), selection.text(), asked, lang));
+                docId, selection.page(), selection.text(), asked, lang));
         BigDecimal cost = response.costUsd() == null ? null : BigDecimal.valueOf(response.costUsd());
         return messages.save(Message.answer(conversation, lang, response.answer(), response.status(),
                         json.writeValueAsString(List.of()), json.writeValueAsString(List.of()), cost, response.model())
-                .withSelection(new Selection(response.page(), response.quote())));
+                .withSelection(new Selection(docId, response.page(), response.quote())));
     }
 
     public List<AiDtos.Citation> citations(Message message) {

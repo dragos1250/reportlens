@@ -162,6 +162,15 @@ public class AiServiceClient {
         }
     }
 
+    public AiDtos.CompareResponse compare(AiDtos.CompareRequest request) {
+        try {
+            return http.post().uri("/compare").contentType(MediaType.APPLICATION_JSON).body(request)
+                    .retrieve().body(AiDtos.CompareResponse.class);
+        } catch (RestClientException e) {
+            throw new AiServiceException("could not get a comparison", e);
+        }
+    }
+
     public AiDtos.AskResponse ask(AiDtos.AskRequest request) {
         try {
             return http.post().uri("/ask").contentType(MediaType.APPLICATION_JSON).body(request)

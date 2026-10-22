@@ -18,12 +18,13 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 
 from generation.answer import Answer, answer_question
+from generation.compare import Comparison, Report, compare_reports
 from generation.explain import explain_selection
 from generation.llm import LLMClient
 from retrieval.search import Searcher
 
-from .schemas import (AskRequest, AskResponse, Citation, Document, ExplainRequest, ExplainResponse, Health,
-                      Passage, Timings, Usage)
+from .schemas import (AskRequest, AskResponse, Citation, CompareRequest, CompareResponse, Document, ExplainRequest,
+                      ExplainResponse, Health, Passage, Timings, Usage)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = REPO_ROOT / "scripts" / "reports.json"
@@ -40,16 +41,17 @@ class Services:
     pdf_path: Callable[[str], Path | None] = lambda doc_id: None  # PDF of a known document, if on disk
 
 
-def to_response(answer: Answer) -> AskResponse:
+def shared_fields(answer: Answer | Comparison) -> dict:
+    """Fields shared by an answer and a comparison."""
     cited = {c.marker for c in answer.check.citations}
     r = answer.response
-    return AskResponse(
+    return dict(
         status=answer.status,
         answer=answer.rendered,
         answer_marked=answer.text,
         question=answer.question,
         search_query=answer.search_query,
-        best_score=answer.best_score,
+        best_score=getattr(answer, "best_score", None),
         citations=[Citation(marker=c.marker, doc_id=c.doc_id, page=c.page, chunk_id=c.chunk_id)
                    for c in answer.check.citations],
         passages=[Passage(marker=m, doc_id=c["doc_id"], page=c["page"], chunk_id=c["chunk_id"],
@@ -116,7 +118,26 @@ def create_app(services: Services) -> FastAPI:
                                      translate=request.translate_query)
         except Exception as error:  # provider/network errors; never echo request headers or keys
             raise HTTPException(status_code=502, detail=f"answer generation failed: {type(error).__name__}")
-        return to_response(answer)
+        return AskResponse(**shared_fields(answer))
+
+    @app.post("/compare")
+    def compare(request: CompareRequest) -> CompareResponse:
+        titles = {d.doc_id: d.title for d in services.documents()}
+        unknown = [doc_id for doc_id in request.doc_ids if doc_id not in titles]
+        if unknown:
+            raise HTTPException(status_code=404, detail=f"unknown doc_id {unknown[0]!r}")
+        if request.doc_ids[0] == request.doc_ids[1]:
+            raise HTTPException(status_code=422, detail="compare needs two different documents")
+        reports = [Report(doc_id, titles[doc_id], services.searcher_for(doc_id, request.method))
+                   for doc_id in request.doc_ids]
+        try:
+            result = compare_reports(request.question, reports, services.llm(), request.method, lang=request.lang,
+                                     translate=request.translate_query)
+        except Exception as error:  # provider/network errors; never echo request headers or keys
+            raise HTTPException(status_code=502, detail=f"comparison failed: {type(error).__name__}")
+        return CompareResponse(**shared_fields(result), doc_ids=request.doc_ids,
+                               missing_doc_ids=result.missing_doc_ids,
+                               best_scores={k: round(v, 4) for k, v in result.best_scores.items()})
 
     return app
 

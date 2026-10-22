@@ -214,3 +214,54 @@ def test_explain_keeps_an_injection_attempt_as_data():
     api.post("/explain", json=explain_body(text=text))
     sent = llm.requests[0]["user"]
     assert sent.count("</selection>") == 1 and "Ignore previous instructions" in sent
+
+
+def compare_client(llm_text, weak=()):
+    """Two reports, "a" and "b"; a report in weak scores 0.0 for every query (fails the guard)."""
+    llm = FakeLLMClient(llm_text)
+
+    def searcher_for(doc_id, method):
+        chunks = [{**c, "doc_id": doc_id, "chunk_id": c["chunk_id"].replace("d-", f"{doc_id}-")} for c in CHUNKS]
+        vectors = np.eye(3, dtype=np.float32)
+        if doc_id in weak:
+            vectors = np.array([[0, 1, 0], [0, 0, 1], [0, 1, 0]], dtype=np.float32)
+        return Searcher(Index(chunks, vectors, "m"), Embedder("m", model=FixedQueryModel()))
+
+    services = Services(documents=lambda: [Document(doc_id="a", title="A report, FY26", chunks=3),
+                                           Document(doc_id="b", title="B report, 2025", chunks=3)],
+                        searcher_for=searcher_for, llm=lambda: llm)
+    return TestClient(create_app(services)), llm
+
+
+def test_compare_cites_both_documents():
+    api, llm = compare_client(llm_output("answered", "A grew [P1]; B grew [P4].", ["P1", "P4"]))
+    response = api.post("/compare", json={"question": "Revenue?", "doc_ids": ["a", "b"], "method": "semantic"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "answered"
+    assert [(c["doc_id"], c["page"]) for c in body["citations"]] == [("a", 11), ("b", 11)]
+    assert body["doc_ids"] == ["a", "b"] and body["missing_doc_ids"] == []
+    assert body["best_scores"] == {"a": 1.0, "b": 1.0}
+    assert body["answer"] == "A grew [a, p. 11]; B grew [b, p. 11]."
+    assert "A report, FY26" in llm.requests[0]["user"]
+
+
+def test_compare_partial_names_the_report_that_does_not_cover_the_question():
+    api, _ = compare_client(llm_output("answered", "A grew [P1].", ["P1"]), weak=("b",))
+    body = api.post("/compare", json={"question": "q", "doc_ids": ["a", "b"], "method": "semantic"}).json()
+    assert body["status"] == "partial" and body["missing_doc_ids"] == ["b"]
+
+
+def test_compare_guard_refuses_both_without_cost():
+    api, llm = compare_client("unused", weak=("a", "b"))
+    body = api.post("/compare", json={"question": "q", "doc_ids": ["a", "b"], "method": "semantic"}).json()
+    assert body["status"] == "not_in_report" and body["model"] is None and body["cost_usd"] == 0.0
+    assert llm.requests == []
+
+
+def test_compare_validates_documents():
+    api, _ = compare_client("unused")
+    assert api.post("/compare", json={"question": "q", "doc_ids": ["a", "zzz"]}).status_code == 404
+    assert api.post("/compare", json={"question": "q", "doc_ids": ["a", "a"]}).status_code == 422
+    assert api.post("/compare", json={"question": "q", "doc_ids": ["a"]}).status_code == 422
+    assert api.post("/compare", json={"question": "", "doc_ids": ["a", "b"]}).status_code == 422
