@@ -184,6 +184,7 @@ reportlens/
 - 📚 Reports are **not stored in this repository**; a script downloads them from their official public sources.
 - 🔑 API keys live only in environment variables on the server, never in the frontend or the repo.
 - 🤖 The assistant can make mistakes: always check the cited page.
+- 🖨️ **Scanned pages are not covered.** Pages without a text layer are neither indexed for the assistant nor searchable with "Search the report text" (there is no OCR). In the test report (Vodafone Form 20-F FY26, 588 pages), 116 pages have no text layer and the same 116 pages have no passage in the database: an exact overlap, mostly scanned exhibits (pages 262, 341-401 and 480-581, with gaps).
 
 ## 📜 License
 

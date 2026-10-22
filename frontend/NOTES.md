@@ -93,3 +93,38 @@ The tests run in jsdom, which has no canvas: the real page rendering, the yellow
 the phone layout were not checked in a browser in this session (see the manual checklist
 in the stage report). The data path behind them was checked for real: PDF ranges through
 the dev proxy, answers and refusals through `/api`.
+
+## Report text search (exact, no AI)
+
+The "Not in this report" block and the viewer toolbar open a search over the report's own
+text. It runs in the browser on the text layer pdf.js extracts, with no backend call and
+no cost.
+
+- **Matching**: literal and case-insensitive. Normalised on both sides only for what a
+  reader cannot see: whitespace runs, a word hyphenated across a line break, typographic
+  apostrophes. Punctuation counts ("€7.6 billion" does not match "7 6 billion");
+  diacritics are not folded ("prioritati" does not find "priorități").
+- **Joining text items**: pdf.js emits its own whitespace items for gaps (17,118 of the
+  75,628 items in the test report), so items on one line are joined as they are and a
+  space is added only at line ends. Adding a space after every item broke phrases:
+  "€7.6 billion" went from 3 matches to 0.
+- **No prefilled term**: the field starts empty; after a refusal the question is shown as
+  a hint only.
+- **Cost of a full search**, measured with pdf.js through range requests: the text of all
+  588 pages takes 2.4 s to extract and reads 32.1 MB (the whole file), 1.70 M characters,
+  slowest page 33 ms; the first 50 pages read 3.5 MB in 0.4 s. So the search starts only
+  on demand, keeps each page's text for the open document (a second search reuses it),
+  and shows results page by page.
+- **Responsiveness**: text extraction runs in pdf.js's worker; the main thread only
+  matches one page at a time and gives control back to the browser every 10 pages. A new
+  search, closing the panel or unmounting stops the running one (generation counter).
+  Responsiveness in a real browser was not measured in this session.
+- **Highlight**: a result uses the same character map and `renderItem` as citations, so
+  the page text is escaped before `<mark>`; the context in the result list is rendered as
+  React text. Tests cover an `<img onerror>` payload in the page text and in the query.
+- **Pages without text**: the search reports how many pages it could not read. In the test
+  report the 116 pages without a text layer are exactly the 116 pages without any passage
+  in the database (overlap 116 of 116, none with text but no passage, none the other way).
+- **Tests**: unit tests on page-like text, the hook (progress, cancel, unmount, errors), the
+  panel inside the workspace, and a test on the real report read from `data/raw` with
+  pdf.js, skipped when the PDF is not downloaded (no report text is stored in the repo).
