@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react"
 import { Document, Page, pdfjs } from "react-pdf"
 import type { CustomTextRenderer, OnGetTextSuccess } from "react-pdf/dist/shared/types.js"
 
+import type { PdfDocumentLike } from "./textSearch"
+
 // pdf.js parses the file in a web worker, served by Vite from the installed package.
 pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString()
 
@@ -20,6 +22,7 @@ interface Props {
   zoom: number // 1 = page fits the available width
   night: boolean
   onLoaded: (pages: number) => void
+  onDocument?: (pdf: PdfDocumentLike) => void // the loaded document, for the text search
   customTextRenderer?: CustomTextRenderer
   onGetTextSuccess?: OnGetTextSuccess
   notice?: string | null // shown above the page, e.g. when a passage could not be marked
@@ -39,7 +42,7 @@ function useWidth<T extends HTMLElement>() {
   return [ref, width] as const
 }
 
-export function PdfViewer({ fileUrl, page, zoom, night, onLoaded, customTextRenderer, onGetTextSuccess, notice }: Props) {
+export function PdfViewer({ fileUrl, page, zoom, night, onLoaded, onDocument, customTextRenderer, onGetTextSuccess, notice }: Props) {
   const [stageRef, stageWidth] = useWidth<HTMLDivElement>()
   const pageWidth = Math.max(240, Math.min(stageWidth - 32, 900)) * zoom
 
@@ -56,7 +59,10 @@ export function PdfViewer({ fileUrl, page, zoom, night, onLoaded, customTextRend
       <Document
         file={fileUrl}
         options={PDF_OPTIONS}
-        onLoadSuccess={({ numPages }) => onLoaded(numPages)}
+        onLoadSuccess={(pdf) => {
+          onLoaded(pdf.numPages)
+          onDocument?.(pdf)
+        }}
         loading={<p className="text-center text-sm text-secondary">Opening the report…</p>}
         error={
           <p role="alert" className="text-center text-sm text-text">

@@ -19,9 +19,11 @@ interface Props {
   zoom: number
   onPage: (page: number) => void
   onZoom: (zoom: number) => void
+  searchOpen?: boolean
+  onToggleSearch?: () => void
 }
 
-export function ViewerToolbar({ page, pages, zoom, onPage, onZoom }: Props) {
+export function ViewerToolbar({ page, pages, zoom, onPage, onZoom, searchOpen = false, onToggleSearch }: Props) {
   const [draft, setDraft] = useState(String(page))
   useEffect(() => {
     setDraft(String(page))
@@ -47,6 +49,12 @@ export function ViewerToolbar({ page, pages, zoom, onPage, onZoom }: Props) {
                 disabled={pages === null || page >= total} onClick={() => onPage(page + 1)}>
           <Icon name="chevron-right" />
         </button>
+        {onToggleSearch && (
+          <button type="button" aria-label="Search the report text" aria-expanded={searchOpen}
+                  className={`${iconButton} ${searchOpen ? "bg-line text-text" : ""}`} onClick={onToggleSearch}>
+            <Icon name="search" />
+          </button>
+        )}
       </div>
 
       <form className="flex items-center gap-1.5 text-xs text-secondary tabular-nums"
