@@ -42,4 +42,11 @@ class UploadsDisabledTest {
         mvc.perform(delete("/api/documents/upload-" + "a".repeat(32))).andExpect(status().isNotFound());
         verify(ai, never()).upload(any(), anyString());
     }
+
+    @Test
+    void withoutAnElevenLabsKeyThePremiumVoiceIsOff() throws Exception {
+        mvc.perform(get("/api/config")).andExpect(jsonPath("$.premiumVoice").value(false));
+        mvc.perform(post("/api/conversations/00000000-0000-0000-0000-000000000000/messages/1/speech"))
+                .andExpect(status().isNotFound());
+    }
 }

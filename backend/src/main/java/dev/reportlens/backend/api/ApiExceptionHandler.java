@@ -4,6 +4,7 @@ import dev.reportlens.backend.ai.AiServiceException;
 import dev.reportlens.backend.conversation.InvalidRequestException;
 import dev.reportlens.backend.conversation.NotFoundException;
 import dev.reportlens.backend.limits.LimitExceededException;
+import dev.reportlens.backend.speech.SpeechRefusedException;
 import dev.reportlens.backend.uploads.UploadRejectedException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -37,6 +38,12 @@ public class ApiExceptionHandler {
     /** 413 for a file over the size limit, 422 for a file the AI service refused; the message says why. */
     @ExceptionHandler(UploadRejectedException.class)
     ProblemDetail uploadRejected(UploadRejectedException e) {
+        return ProblemDetail.forStatusAndDetail(e.getStatus(), e.getMessage());
+    }
+
+    /** The premium voice cannot read this answer (uploaded report, service down); the browser voice can. */
+    @ExceptionHandler(SpeechRefusedException.class)
+    ProblemDetail speechRefused(SpeechRefusedException e) {
         return ProblemDetail.forStatusAndDetail(e.getStatus(), e.getMessage());
     }
 

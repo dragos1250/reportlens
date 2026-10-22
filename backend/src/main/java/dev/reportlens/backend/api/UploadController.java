@@ -7,6 +7,7 @@ import dev.reportlens.backend.api.ApiDtos.UploadAcceptedDto;
 import dev.reportlens.backend.api.ApiDtos.UploadJobDto;
 import dev.reportlens.backend.conversation.NotFoundException;
 import dev.reportlens.backend.limits.UsageLimits;
+import dev.reportlens.backend.speech.SpeechService;
 import dev.reportlens.backend.uploads.UploadService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
@@ -35,15 +36,18 @@ public class UploadController {
 
     private final UploadService uploads;
     private final UsageLimits limits;
+    private final SpeechService speech;
 
-    public UploadController(UploadService uploads, UsageLimits limits) {
+    public UploadController(UploadService uploads, UsageLimits limits, SpeechService speech) {
         this.uploads = uploads;
         this.limits = limits;
+        this.speech = speech;
     }
 
+    /** What this server offers: uploads and the premium voice are both optional. */
     @GetMapping("/config")
     public ConfigDto config() {
-        return new ConfigDto(uploads.enabled(), uploads.maxMb());
+        return new ConfigDto(uploads.enabled(), uploads.maxMb(), speech.premiumVoice());
     }
 
     @PostMapping(value = "/uploads", consumes = "application/pdf")

@@ -24,7 +24,8 @@ public final class ApiDtos {
     }
 
     /** What the browser needs to know about this server. */
-    public record ConfigDto(boolean uploadsEnabled, int maxUploadMb) {
+    /** premiumVoice: ElevenLabs is configured on this server (the browser voice always works). */
+    public record ConfigDto(boolean uploadsEnabled, int maxUploadMb, boolean premiumVoice) {
     }
 
     public record UploadAcceptedDto(String jobId, String docId, String title, String state) {
@@ -77,8 +78,13 @@ public final class ApiDtos {
      * For an assistant message, {@code content} is the answer with [P1].. markers and
      * {@code passages} maps each marker to its page and text.
      */
+    /**
+     * spokenText / spokenLang (answers only): what "Read aloud" reads, without the [P#] markers,
+     * and its language ("ro" or "en"), resolved on the server even when the question used "Auto".
+     */
     public record MessageDto(Long id, String role, String content, String lang, String status,
                              List<CitationDto> citations, List<PassageDto> passages, BigDecimal costUsd,
-                             String model, SelectionDto selection, OffsetDateTime createdAt) {
+                             String model, SelectionDto selection, OffsetDateTime createdAt,
+                             String spokenText, String spokenLang) {
     }
 }

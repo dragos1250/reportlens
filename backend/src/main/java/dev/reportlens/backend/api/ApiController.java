@@ -14,6 +14,8 @@ import dev.reportlens.backend.conversation.ConversationService;
 import dev.reportlens.backend.conversation.Message;
 import dev.reportlens.backend.conversation.Selection;
 import dev.reportlens.backend.limits.UsageLimits;
+import dev.reportlens.backend.speech.SpeechProperties;
+import dev.reportlens.backend.speech.SpokenText;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -36,11 +38,13 @@ import java.util.UUID;
 public class ApiController {
 
     private final ConversationService service;
+    private final int speechChars;
     private final UsageLimits limits;
 
-    public ApiController(ConversationService service, UsageLimits limits) {
+    public ApiController(ConversationService service, UsageLimits limits, SpeechProperties speech) {
         this.service = service;
         this.limits = limits;
+        this.speechChars = speech.maxChars();
     }
 
     @GetMapping("/documents")
@@ -111,8 +115,9 @@ public class ApiController {
         List<PassageDto> passages = service.passages(m).stream()
                 .map(p -> new PassageDto(p.marker(), p.docId(), p.page(), p.chunkId(), p.text(), p.cited())).toList();
         Selection s = m.getSelection();
+        String spoken = "assistant".equals(m.getRole()) ? SpokenText.of(m.getContent(), speechChars) : null;
         return new MessageDto(m.getId(), m.getRole(), m.getContent(), m.getLang(), m.getStatus(), citations,
                 passages, m.getCostUsd(), m.getModel(), s == null ? null : new SelectionDto(s.docId(), s.page(), s.text()),
-                m.getCreatedAt());
+                m.getCreatedAt(), spoken, spoken == null ? null : SpokenText.languageOf(m.getLang(), spoken));
     }
 }

@@ -14,6 +14,7 @@ import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.UUID;
 
 /** One turn of a conversation: the user's question or the assistant's answer. */
 @Entity
@@ -105,6 +106,15 @@ public class Message {
 
     public Selection getSelection() {
         return selectionPage == null ? null : new Selection(selectionDocId, selectionPage, selectionText);
+    }
+
+    /**
+     * Whether this message is part of that conversation; reads the id without loading the
+     * conversation. Not a getter on purpose: a "conversationId" property would change how
+     * Spring Data reads findByConversationId... queries.
+     */
+    public boolean belongsTo(UUID conversationId) {
+        return conversationId.equals(conversation.getId());
     }
 
     public Long getId() {
