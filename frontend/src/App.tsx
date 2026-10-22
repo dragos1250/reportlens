@@ -2,6 +2,7 @@ import { useState } from "react"
 
 import type { DocumentInfo } from "./api/types"
 import { DocumentPicker } from "./home/DocumentPicker"
+import { Workspace } from "./workspace/Workspace"
 
 export default function App() {
   const [document, setDocument] = useState<DocumentInfo | null>(null)
@@ -9,9 +10,5 @@ export default function App() {
   if (document === null) {
     return <DocumentPicker onOpen={setDocument} />
   }
-  return (
-    <main className="grid min-h-full place-items-center">
-      <p className="text-secondary">{document.title}</p>
-    </main>
-  )
+  return <Workspace document={document} onClose={() => setDocument(null)} />
 }
