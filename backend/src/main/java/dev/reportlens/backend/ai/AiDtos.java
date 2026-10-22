@@ -24,8 +24,13 @@ public final class AiDtos {
                           @JsonProperty("chunk_id") String chunkId, String text, boolean cited) {
     }
 
-    /** Only the fields the backend uses; the service sends more (usage, timings, ...). */
-    public record AskResponse(String status, String answer, List<Citation> citations, List<Passage> passages,
+    /**
+     * Only the fields the backend uses; the service sends more (usage, timings, ...).
+     * {@code answerMarked} is the answer with the model's [P1].. markers, which the UI turns
+     * into clickable citations using {@code passages}.
+     */
+    public record AskResponse(String status, String answer, @JsonProperty("answer_marked") String answerMarked,
+                              List<Citation> citations, List<Passage> passages,
                               String model, @JsonProperty("cost_usd") Double costUsd) {
     }
 }

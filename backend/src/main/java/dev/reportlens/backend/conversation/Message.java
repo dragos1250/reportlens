@@ -45,6 +45,10 @@ public class Message {
     @Column(columnDefinition = "jsonb")
     private String citations;  // JSON array, written and read by ConversationService
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb")
+    private String passages;  // JSON array of every passage sent to the model, cited or not
+
     @Column(name = "cost_usd")
     private BigDecimal costUsd;
 
@@ -68,11 +72,13 @@ public class Message {
         return new Message(conversation, USER, question, lang);
     }
 
+    /** {@code answer} keeps the [P1].. markers; {@code passagesJson} says which page each marker is. */
     public static Message answer(Conversation conversation, String lang, String answer, String status,
-                                 String citationsJson, BigDecimal costUsd, String model) {
+                                 String citationsJson, String passagesJson, BigDecimal costUsd, String model) {
         var message = new Message(conversation, ASSISTANT, answer, lang);
         message.status = status;
         message.citations = citationsJson;
+        message.passages = passagesJson;
         message.costUsd = costUsd;
         message.model = model;
         return message;
@@ -100,6 +106,10 @@ public class Message {
 
     public String getCitations() {
         return citations;
+    }
+
+    public String getPassages() {
+        return passages;
     }
 
     public BigDecimal getCostUsd() {

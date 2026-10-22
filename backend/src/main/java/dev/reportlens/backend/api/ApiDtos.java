@@ -32,8 +32,15 @@ public final class ApiDtos {
     public record CitationDto(String marker, String docId, int page, String chunkId) {
     }
 
+    public record PassageDto(String marker, String docId, int page, String chunkId, String text, boolean cited) {
+    }
+
+    /**
+     * For an assistant message, {@code content} is the answer with [P1].. markers and
+     * {@code passages} maps each marker to its page and text.
+     */
     public record MessageDto(Long id, String role, String content, String lang, String status,
-                             List<CitationDto> citations, BigDecimal costUsd, String model,
-                             OffsetDateTime createdAt) {
+                             List<CitationDto> citations, List<PassageDto> passages, BigDecimal costUsd,
+                             String model, OffsetDateTime createdAt) {
     }
 }

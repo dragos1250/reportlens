@@ -1,16 +1,21 @@
 package dev.reportlens.backend.ai;
 
+import dev.reportlens.backend.conversation.NotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
+import java.io.ByteArrayOutputStream;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
@@ -38,6 +43,7 @@ class AiServiceClientTest {
                         """))
                 .andRespond(withSuccess("""
                         {"status": "answered", "answer": "Customers, Simplicity și Growth [vodafone-20f-fy26, p. 12].",
+                         "answer_marked": "Customers, Simplicity și Growth [P4].",
                          "question": "Care sunt prioritățile?", "search_query": "Care sunt prioritățile?",
                          "best_score": 0.866,
                          "citations": [{"marker": "P4", "doc_id": "vodafone-20f-fy26", "page": 12,
@@ -56,6 +62,7 @@ class AiServiceClientTest {
                     assertThat(c.page()).isEqualTo(12);
                     assertThat(c.chunkId()).isEqualTo("vodafone-20f-fy26-p0012-c001");
                 });
+        assertThat(response.answerMarked()).isEqualTo("Customers, Simplicity și Growth [P4].");
         assertThat(response.costUsd()).isEqualTo(0.000186);
         server.verify();
     }
@@ -69,6 +76,40 @@ class AiServiceClientTest {
 
         assertThat(client.documents()).containsExactly(
                 new AiDtos.Document("vodafone-20f-fy26", "Vodafone 20-F FY26", 2549));
+    }
+
+    @Test
+    void pdfIsCopiedToTheSinkWithTheRangeHeaderPassedOn() {
+        byte[] part = "%PDF-1.7 part".getBytes();
+        var headers = new HttpHeaders();
+        headers.set(HttpHeaders.CONTENT_RANGE, "bytes 0-12/32051349");
+        headers.set("X-Internal", "not forwarded");
+        server.expect(requestTo("http://ai.test/documents/vodafone-20f-fy26/pdf"))
+                .andExpect(header(HttpHeaders.RANGE, "bytes=0-12"))
+                .andRespond(withStatus(HttpStatus.PARTIAL_CONTENT).contentType(MediaType.APPLICATION_PDF)
+                        .headers(headers).body(part));
+
+        var out = new ByteArrayOutputStream();
+        int[] status = new int[1];
+        HttpHeaders[] forwarded = new HttpHeaders[1];
+        client.streamPdf("vodafone-20f-fy26", "bytes=0-12", (code, h) -> {
+            status[0] = code;
+            forwarded[0] = h;
+            return out;
+        });
+
+        assertThat(status[0]).isEqualTo(206);
+        assertThat(out.toByteArray()).isEqualTo(part);
+        assertThat(forwarded[0].getFirst(HttpHeaders.CONTENT_RANGE)).isEqualTo("bytes 0-12/32051349");
+        assertThat(forwarded[0].getContentType()).isEqualTo(MediaType.APPLICATION_PDF);
+        assertThat(forwarded[0].containsHeader("X-Internal")).isFalse();
+    }
+
+    @Test
+    void pdfNotFoundBecomesNotFoundException() {
+        server.expect(requestTo("http://ai.test/documents/nope/pdf")).andRespond(withStatus(HttpStatus.NOT_FOUND));
+        assertThatThrownBy(() -> client.streamPdf("nope", null, (code, h) -> new ByteArrayOutputStream()))
+                .isInstanceOf(NotFoundException.class);
     }
 
     @Test

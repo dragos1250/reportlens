@@ -2,6 +2,7 @@ package dev.reportlens.backend.conversation;
 
 import dev.reportlens.backend.ai.AiDtos;
 import dev.reportlens.backend.ai.AiServiceClient;
+import dev.reportlens.backend.ai.PdfSink;
 import org.springframework.stereotype.Service;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
@@ -14,6 +15,8 @@ import java.util.UUID;
 public class ConversationService {
 
     private static final TypeReference<List<AiDtos.Citation>> CITATIONS = new TypeReference<>() {
+    };
+    private static final TypeReference<List<AiDtos.Passage>> PASSAGES = new TypeReference<>() {
     };
 
     private final ConversationRepository conversations;
@@ -60,12 +63,23 @@ public class ConversationService {
         messages.save(Message.question(conversation, question, lang));
         AiDtos.AskResponse response = ai.ask(new AiDtos.AskRequest(question, conversation.getDocId(), lang));
         BigDecimal cost = response.costUsd() == null ? null : BigDecimal.valueOf(response.costUsd());
-        return messages.save(Message.answer(conversation, lang, response.answer(), response.status(),
-                json.writeValueAsString(response.citations()), cost, response.model()));
+        // Keep the [P#] markers: with the passages, the UI knows which page each citation is.
+        String answer = response.answerMarked() != null ? response.answerMarked() : response.answer();
+        return messages.save(Message.answer(conversation, lang, answer, response.status(),
+                json.writeValueAsString(response.citations()), json.writeValueAsString(response.passages()),
+                cost, response.model()));
     }
 
     public List<AiDtos.Citation> citations(Message message) {
         return message.getCitations() == null ? List.of() : json.readValue(message.getCitations(), CITATIONS);
+    }
+
+    public List<AiDtos.Passage> passages(Message message) {
+        return message.getPassages() == null ? List.of() : json.readValue(message.getPassages(), PASSAGES);
+    }
+
+    public void streamPdf(String docId, String range, PdfSink sink) {
+        ai.streamPdf(docId, range, sink);
     }
 
     private Conversation find(UUID id) {
