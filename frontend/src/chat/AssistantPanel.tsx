@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 
-import type { Lang, Passage } from "../api/types"
+import type { Lang, Message, Passage, Selection } from "../api/types"
 import { Icon } from "../components/Icon"
 import { AnswerText, Sources } from "./Answer"
 import { Composer } from "./Composer"
@@ -11,16 +11,27 @@ interface Props {
   turns: Turn[]
   busy: boolean
   activeChunkId: string | null
-  onAsk: (question: string, lang: Lang) => void
+  lang: Lang
+  onLang: (lang: Lang) => void
+  /** Text chosen with "Ask about this", waiting for the reader's question. */
+  pendingSelection: Selection | null
+  onClearSelection: () => void
+  onAsk: (question: string, lang: Lang, selection: Selection | null) => void
   onRetry: (turn: Turn) => void
   onCite: (passage: Passage) => void
+  /** Jump to a quoted selection's page and mark it. */
+  onShowSelection: (selection: Selection) => void
   /** "Search the report text" after a refusal; the question is passed as a hint only. */
   onSearchReport: (question: string) => void
 }
 
-export function AssistantPanel({ turns, busy, activeChunkId, onAsk, onRetry, onCite, onSearchReport }: Props) {
+const EXPLAIN_REFUSALS = new Set(["not_enough", "too_short", "too_long", "no_text"])
+
+export function AssistantPanel({
+  turns, busy, activeChunkId, lang, onLang, pendingSelection, onClearSelection, onAsk, onRetry, onCite,
+  onShowSelection, onSearchReport,
+}: Props) {
   const [draft, setDraft] = useState("")
-  const [lang, setLang] = useState<Lang>("auto")
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const endRef = useRef<HTMLDivElement>(null)
 
@@ -30,9 +41,14 @@ export function AssistantPanel({ turns, busy, activeChunkId, onAsk, onRetry, onC
     endRef.current?.scrollIntoView?.({ block: "end" })
   }, [turns])
 
+  useEffect(() => {
+    if (pendingSelection) textareaRef.current?.focus()
+  }, [pendingSelection])
+
   function submit() {
-    onAsk(draft.trim(), lang)
+    onAsk(draft.trim(), lang, pendingSelection)
     setDraft("")
+    onClearSelection()
   }
 
   function rephrase(question: string) {
@@ -61,24 +77,49 @@ export function AssistantPanel({ turns, busy, activeChunkId, onAsk, onRetry, onC
         {turns.length === 0 && (
           <p className="m-0 font-reading text-[15px] leading-relaxed text-secondary">
             Ask a question about this report. Every answer points to the page it comes from; when the
-            report does not say, the assistant says so.
+            report does not say, the assistant says so. You can also select text in the report and choose
+            “Explain this”.
           </p>
         )}
         {turns.map((turn) => (
           <article key={turn.id} className="mb-6 border-b border-line pb-5 last:border-b-0">
-            <h2 className="m-0 mb-1 text-xs font-medium text-secondary">You asked</h2>
-            <p className="m-0 mb-4 text-[15px] leading-normal font-semibold tracking-tight">{turn.question}</p>
+            {turn.selection && <SelectionQuote selection={turn.selection} onShow={onShowSelection} />}
+            {turn.question && (
+              <>
+                <h2 className="m-0 mb-1 text-xs font-medium text-secondary">You asked</h2>
+                <p className="m-0 mb-4 text-[15px] leading-normal font-semibold tracking-tight">{turn.question}</p>
+              </>
+            )}
             <TurnBody turn={turn} isLast={turn === lastDone} activeChunkId={activeChunkId}
-                      onCite={onCite} onRetry={onRetry} onRephrase={() => rephrase(turn.question)}
-                      onSearchReport={() => onSearchReport(turn.question)} />
+                      onCite={onCite} onRetry={onRetry} onRephrase={() => rephrase(turn.question ?? "")}
+                      onSearchReport={() => onSearchReport(turn.question ?? "")} />
           </article>
         ))}
         <div ref={endRef} />
       </div>
 
       <Composer draft={draft} lang={lang} busy={busy} textareaRef={textareaRef}
-                onDraft={setDraft} onLang={setLang} onSubmit={submit} />
+                pendingSelection={pendingSelection} onClearSelection={onClearSelection}
+                onDraft={setDraft} onLang={onLang} onSubmit={submit} />
     </aside>
+  )
+}
+
+/** The selected text, quoted with its page; the page jumps back to it in the report. */
+function SelectionQuote({ selection, onShow }: { selection: Selection; onShow: (selection: Selection) => void }) {
+  return (
+    <div className="mb-4">
+      <h2 className="m-0 mb-1.5 flex items-center gap-2 text-xs font-medium text-secondary">
+        You selected
+        <button type="button" onClick={() => onShow(selection)} aria-label={`Show the selection on page ${selection.page}`}
+                className="inline-flex min-h-6 items-center rounded-[5px] border border-line-strong px-1.5 text-xs text-text tabular-nums hover:border-accent hover:text-accent max-md:min-h-8">
+          p. {selection.page}
+        </button>
+      </h2>
+      <blockquote className="m-0 line-clamp-6 border-l-2 border-accent/60 pl-3 font-reading text-[13px] leading-snug text-secondary">
+        “{selection.text}”
+      </blockquote>
+    </div>
   )
 }
 
@@ -92,13 +133,19 @@ function TurnBody({ turn, isLast, activeChunkId, onCite, onRetry, onRephrase, on
   onSearchReport: () => void
 }) {
   if (turn.state === "loading") {
-    return <p className="m-0 animate-pulse text-sm text-secondary">Searching the report…</p>
+    return (
+      <p className="m-0 animate-pulse text-sm text-secondary">
+        {turn.selection ? "Reading the selected text…" : "Searching the report…"}
+      </p>
+    )
   }
   if (turn.state === "error") {
     return <Problem text={turn.error} onRetry={() => onRetry(turn)} />
   }
 
   const message = turn.answer
+  if (message.status === "explained") return <Explanation message={message} />
+  if (message.status && EXPLAIN_REFUSALS.has(message.status)) return <CannotExplain message={message} />
   if (message.status === "not_found" || message.status === "not_in_report") {
     return <NotInReport message={message} onPage={onCite} onRephrase={onRephrase} onSearchReport={onSearchReport} />
   }
@@ -110,14 +157,41 @@ function TurnBody({ turn, isLast, activeChunkId, onCite, onRetry, onRephrase, on
     <>
       <h3 className="sr-only">Answer</h3>
       <AnswerText message={message} activeChunkId={activeChunkId} onCite={onCite} />
-      {message.model && (
-        <p className="m-0 mt-2 text-xs text-secondary">
-          {message.model}
-          {message.costUsd !== null && ` · $${message.costUsd.toFixed(4)}`}
-        </p>
-      )}
+      <ModelLine message={message} />
       {isLast && <Sources message={message} activeChunkId={activeChunkId} onCite={onCite} />}
     </>
+  )
+}
+
+/** An explanation of the selection: says plainly that it rests on that text only. */
+function Explanation({ message }: { message: Message }) {
+  return (
+    <>
+      <h3 className="sr-only">Explanation</h3>
+      <p className="m-0 mb-2 text-xs text-secondary">Based only on this text, not the whole report.</p>
+      <p className="m-0 font-reading text-base leading-relaxed text-answer">{message.content}</p>
+      <ModelLine message={message} />
+    </>
+  )
+}
+
+/** Calm refusal for a selection: too short, too long, without text, or not enough to explain. */
+function CannotExplain({ message }: { message: Message }) {
+  return (
+    <div className="rounded-xl border border-dashed border-line-strong px-4 py-4">
+      <h3 className="m-0 mb-1 text-sm font-semibold">Nothing to explain from this selection</h3>
+      <p className="m-0 font-reading text-[13px] leading-relaxed text-secondary">{message.content}</p>
+    </div>
+  )
+}
+
+function ModelLine({ message }: { message: Message }) {
+  if (!message.model) return null
+  return (
+    <p className="m-0 mt-2 text-xs text-secondary">
+      {message.model}
+      {message.costUsd !== null && ` · $${message.costUsd.toFixed(4)}`}
+    </p>
   )
 }
 

@@ -1,6 +1,6 @@
 import type { FormEvent, KeyboardEvent, RefObject } from "react"
 
-import type { Lang } from "../api/types"
+import type { Lang, Selection } from "../api/types"
 import { Icon } from "../components/Icon"
 
 const LANGS: { value: Lang; label: string; name: string }[] = [
@@ -14,12 +14,16 @@ interface Props {
   lang: Lang
   busy: boolean
   textareaRef: RefObject<HTMLTextAreaElement | null>
+  /** "Ask about this": the question will be answered from this text only. */
+  pendingSelection?: Selection | null
+  onClearSelection?: () => void
   onDraft: (text: string) => void
   onLang: (lang: Lang) => void
   onSubmit: () => void
 }
 
-export function Composer({ draft, lang, busy, textareaRef, onDraft, onLang, onSubmit }: Props) {
+export function Composer({ draft, lang, busy, textareaRef, pendingSelection = null, onClearSelection, onDraft, onLang,
+  onSubmit }: Props) {
   const canAsk = draft.trim().length > 0 && !busy
 
   function submit(event: FormEvent) {
@@ -39,6 +43,18 @@ export function Composer({ draft, lang, busy, textareaRef, onDraft, onLang, onSu
       onSubmit={submit}
       className="m-3.5 mt-0 rounded-xl border border-line-strong bg-composer px-3 pt-3 pb-2 shadow-[0_-12px_30px_rgb(15_23_32/0.55)] focus-within:border-accent/40"
     >
+      {pendingSelection && (
+        <div className="mb-2 flex items-start gap-2 rounded-lg border border-line bg-white/[0.02] px-2.5 py-2">
+          <p className="m-0 line-clamp-2 flex-1 text-xs text-secondary">
+            About the text on <span className="text-text tabular-nums">p. {pendingSelection.page}</span>:{" "}
+            <span className="font-reading">“{pendingSelection.text}”</span>. The answer uses only this text.
+          </p>
+          <button type="button" onClick={onClearSelection} aria-label="Remove the selected text"
+                  className="grid size-11 shrink-0 place-items-center rounded-md text-secondary hover:bg-line hover:text-text md:size-7">
+            <span aria-hidden="true">×</span>
+          </button>
+        </div>
+      )}
       <label htmlFor="question" className="sr-only">Ask about the report</label>
       <textarea
         id="question"
@@ -48,7 +64,7 @@ export function Composer({ draft, lang, busy, textareaRef, onDraft, onLang, onSu
         value={draft}
         onChange={(event) => onDraft(event.target.value)}
         onKeyDown={onKeyDown}
-        placeholder="Ask about this report…"
+        placeholder={pendingSelection ? "Ask about the selected text…" : "Ask about this report…"}
         className="w-full resize-none border-0 bg-transparent text-sm leading-normal text-text placeholder:text-secondary focus-visible:outline-none"
       />
       <div className="flex flex-wrap items-center justify-between gap-2">

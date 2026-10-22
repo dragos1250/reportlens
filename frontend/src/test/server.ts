@@ -30,6 +30,7 @@ export function assistantMessage(overrides: Partial<Message> = {}): Message {
     ],
     costUsd: 0.000186,
     model: "gpt-6-luna",
+    selection: null,
     createdAt: "2026-10-22T10:00:05Z",
     ...overrides,
   }

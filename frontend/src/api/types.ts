@@ -1,6 +1,15 @@
 /** JSON shapes of the Spring Boot API (/api). */
 
-export type Status = "answered" | "not_found" | "not_in_report" | "incomplete" | "invalid_output"
+export type Status =
+  | "answered" | "not_found" | "not_in_report" | "incomplete" | "invalid_output"
+  // Select & explain: the model explained / said the text is not enough; the guard refused
+  | "explained" | "not_enough" | "too_short" | "too_long" | "no_text"
+
+/** Text the reader selected in the PDF, with its page (Select & explain). */
+export interface Selection {
+  page: number
+  text: string
+}
 
 /** "auto" sends no language: the model answers in the language it detects. */
 export type Lang = "auto" | "en" | "ro"
@@ -46,5 +55,7 @@ export interface Message {
   passages: Passage[]
   costUsd: number | null
   model: string | null
+  /** Set on both messages of a Select & explain turn. */
+  selection: Selection | null
   createdAt: string
 }

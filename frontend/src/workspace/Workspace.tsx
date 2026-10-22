@@ -1,8 +1,8 @@
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useMemo, useRef, useState } from "react"
 import type { TextContent } from "react-pdf/dist/shared/types.js"
 
 import { api } from "../api/client"
-import type { DocumentInfo, Passage } from "../api/types"
+import type { DocumentInfo, Lang, Passage, Selection } from "../api/types"
 import { AssistantPanel } from "../chat/AssistantPanel"
 import { useConversation } from "../chat/useConversation"
 import { BrandMark } from "../components/BrandMark"
@@ -13,7 +13,8 @@ import { findPassage, type Match, renderItem, type TextItemLike } from "../pdf/h
 import { PageRail } from "../pdf/PageRail"
 import { PdfViewer } from "../pdf/PdfViewer"
 import { SearchPanel } from "../pdf/SearchPanel"
-import { marksForHit, type PdfDocumentLike, type SearchHit, textSourceFor } from "../pdf/textSearch"
+import { SelectionToolbar } from "../pdf/SelectionToolbar"
+import { marksForHit, type PdfDocumentLike, type SearchHit, searchPage, textSourceFor } from "../pdf/textSearch"
 import { useTextSearch } from "../pdf/useTextSearch"
 import { clampPage, ViewerToolbar } from "../pdf/ViewerToolbar"
 
@@ -21,10 +22,24 @@ const NIGHT_KEY = "reportlens.night-reading"
 
 type Tab = "report" | "assistant"
 
-/** What is highlighted on the page: a cited passage or a text search result. */
-type Target = { kind: "passage"; passage: Passage } | { kind: "search"; hit: SearchHit }
+/** What is highlighted on the page: a cited passage, a text search result, or a quoted selection. */
+type Target =
+  | { kind: "passage"; passage: Passage }
+  | { kind: "search"; hit: SearchHit }
+  | { kind: "selection"; selection: Selection }
 
-const targetPage = (target: Target) => (target.kind === "passage" ? target.passage.page : target.hit.page)
+function targetPage(target: Target): number {
+  if (target.kind === "passage") return target.passage.page
+  if (target.kind === "search") return target.hit.page
+  return target.selection.page
+}
+
+/** Where a quoted selection sits on its page: the exact text first, then the passage matcher. */
+function findSelection(items: TextItemLike[], selection: Selection): Match {
+  const hit = searchPage(selection.page, items, selection.text)[0]
+  if (hit) return { method: "exact", marks: marksForHit(items, hit) }
+  return findPassage(items, selection.text)
+}
 
 export function Workspace({ document, onClose }: { document: DocumentInfo; onClose: () => void }) {
   const [pages, setPages] = useState<number | null>(null)
@@ -40,12 +55,17 @@ export function Workspace({ document, onClose }: { document: DocumentInfo; onClo
   const [tab, setTab] = useState<Tab>("report") // phones show one pane at a time
   const conversation = useConversation(document.docId)
   const [pageText, setPageText] = useState<{ page: number; items: TextItemLike[] } | null>(null)
+  // Lives here, not in the panel: "Explain this" starts from the viewer and uses the same language.
+  const [lang, setLang] = useState<Lang>("auto")
+  const [pendingSelection, setPendingSelection] = useState<Selection | null>(null)
+  const viewerRef = useRef<HTMLDivElement>(null)
 
   // The cited passage's place on the shown page, recomputed when the page text or the
   // passage changes. No match: nothing is marked, the jump still happened.
   const match = useMemo((): Match | null => {
     if (!target || targetPage(target) !== page || pageText?.page !== page) return null
     if (target.kind === "passage") return findPassage(pageText.items, target.passage.text)
+    if (target.kind === "selection") return findSelection(pageText.items, target.selection)
     const marks = marksForHit(pageText.items, target.hit)
     return { method: marks.size > 0 ? "exact" : "none", marks }
   }, [target, page, pageText])
@@ -63,7 +83,9 @@ export function Workspace({ document, onClose }: { document: DocumentInfo; onClo
   const notice = match?.method !== "none" ? null
     : target?.kind === "search"
       ? `Couldn’t mark the match on page ${page}.`
-      : `Couldn’t mark the passage on page ${page}; its text is in Sources.`
+      : target?.kind === "selection"
+        ? `Couldn’t mark the selection on page ${page}.`
+        : `Couldn’t mark the passage on page ${page}; its text is in Sources.`
 
   const citedPages = conversation.turns.flatMap((turn) =>
     turn.state === "done" ? turn.answer.passages.filter((p) => p.cited).map((p) => p.page) : [],
@@ -78,6 +100,24 @@ export function Workspace({ document, onClose }: { document: DocumentInfo; onClo
     setTarget({ kind: "passage", passage })
     goTo(passage.page)
     setTab("report")
+  }
+
+  function showSelection(selection: Selection) {
+    setTarget({ kind: "selection", selection })
+    goTo(selection.page)
+    setTab("report")
+  }
+
+  /** "Explain this": ask at once, with no question; the answer uses only the selected text. */
+  function explainSelection(selection: Selection) {
+    void conversation.ask(null, lang, selection)
+    setTab("assistant")
+  }
+
+  /** "Ask about this": keep the selection in the composer until the reader writes a question. */
+  function askAboutSelection(selection: Selection) {
+    setPendingSelection(selection)
+    setTab("assistant")
   }
 
   function showHit(hit: SearchHit) {
@@ -146,8 +186,11 @@ export function Workspace({ document, onClose }: { document: DocumentInfo; onClo
                              onSearch={textSearch.search} onPick={showHit} onClose={closeSearch} />
               )}
             </div>
-            <PdfViewer fileUrl={api.pdfUrl(document.docId)} page={page} zoom={zoom} night={night} onLoaded={setPages}
-                       onDocument={setPdf} customTextRenderer={renderText} onGetTextSuccess={onGetText} notice={notice} />
+            <div ref={viewerRef} className="relative grid min-h-0 min-w-0">
+              <PdfViewer fileUrl={api.pdfUrl(document.docId)} page={page} zoom={zoom} night={night} onLoaded={setPages}
+                         onDocument={setPdf} customTextRenderer={renderText} onGetTextSuccess={onGetText} notice={notice} />
+              <SelectionToolbar containerRef={viewerRef} page={page} onExplain={explainSelection} onAsk={askAboutSelection} />
+            </div>
           </div>
         </section>
         <div id="pane-assistant" className={`min-h-0 md:grid ${tab === "assistant" ? "grid" : "hidden"}`}>
@@ -158,9 +201,14 @@ export function Workspace({ document, onClose }: { document: DocumentInfo; onClo
               turns={conversation.turns}
               busy={conversation.busy}
               activeChunkId={target?.kind === "passage" ? target.passage.chunkId : null}
+              lang={lang}
+              onLang={setLang}
+              pendingSelection={pendingSelection}
+              onClearSelection={() => setPendingSelection(null)}
               onAsk={conversation.ask}
               onRetry={conversation.retry}
               onCite={showPassage}
+              onShowSelection={showSelection}
               onSearchReport={openSearch}
             />
           </ErrorBoundary>

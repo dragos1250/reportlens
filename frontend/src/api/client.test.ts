@@ -37,6 +37,18 @@ describe("api client", () => {
     expect(sent).toEqual({ question: "Care au fost veniturile?", lang: expected })
   })
 
+  it("sends a selection with no question for Explain this", async () => {
+    let sent: unknown
+    server.use(
+      http.post("*/api/conversations/:id/messages", async ({ request }) => {
+        sent = await request.json()
+        return HttpResponse.json({}, { status: 201 })
+      }),
+    )
+    await api.ask(CONVERSATION.id, null, "auto", { page: 25, text: "Cash €9.0 billion." })
+    expect(sent).toEqual({ question: null, lang: null, selection: { page: 25, text: "Cash €9.0 billion." } })
+  })
+
   it("turns a 502 into a message that says what to do", async () => {
     server.use(http.post("*/api/conversations/:id/messages", () => HttpResponse.json({ detail: "x" }, { status: 502 })))
     const error = await api.ask(CONVERSATION.id, "q", "auto").catch((e: unknown) => e)

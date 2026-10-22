@@ -1,4 +1,4 @@
-import type { Conversation, DocumentInfo, Lang, Message } from "./types"
+import type { Conversation, DocumentInfo, Lang, Message, Selection } from "./types"
 
 /** A failed request, with a message the UI can show as is. status 0 = no response at all. */
 export class ApiError extends Error {
@@ -55,11 +55,16 @@ export const api = {
 
   startConversation: (docId: string) => postJson<Conversation>("/conversations", { docId }),
 
-  /** Returns the assistant's message; the question is stored by the backend too. */
-  ask: (conversationId: string, question: string, lang: Lang) =>
+  /**
+   * Returns the assistant's message; the question is stored by the backend too. With a
+   * selection and no question: "Explain this"; with both: "Ask about this" (answered from the
+   * selection only).
+   */
+  ask: (conversationId: string, question: string | null, lang: Lang, selection: Selection | null = null) =>
     postJson<Message>(`/conversations/${encodeURIComponent(conversationId)}/messages`, {
       question,
       lang: lang === "auto" ? null : lang,
+      ...(selection ? { selection } : {}),
     }),
 
   /** Streamed by the backend with range support; pdf.js loads it in parts. */

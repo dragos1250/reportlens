@@ -1,13 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import { api } from "../api/client"
-import type { Lang, Message } from "../api/types"
+import type { Lang, Message, Selection } from "../api/types"
 
-/** One question and what happened to it. */
+/**
+ * One question and what happened to it. A Select & explain turn has a selection, and a
+ * question only for "Ask about this" ("Explain this" has none).
+ */
+interface TurnBase {
+  id: number
+  question: string | null
+  selection: Selection | null
+  lang: Lang
+}
+
 export type Turn =
-  | { id: number; question: string; lang: Lang; state: "loading" }
-  | { id: number; question: string; lang: Lang; state: "done"; answer: Message }
-  | { id: number; question: string; lang: Lang; state: "error"; error: string }
+  | (TurnBase & { state: "loading" })
+  | (TurnBase & { state: "done"; answer: Message })
+  | (TurnBase & { state: "error"; error: string })
 
 /**
  * Conversation with the backend for one document. The conversation is created on the
@@ -31,29 +41,32 @@ export function useConversation(docId: string) {
     }
   }, [docId])
 
-  const run = useCallback(async (id: number, question: string, lang: Lang) => {
+  const run = useCallback(async (base: TurnBase) => {
     const started = generation.current
     const update = (turn: Turn) => {
-      if (generation.current === started) setTurns((all) => all.map((t) => (t.id === id ? turn : t)))
+      if (generation.current === started) setTurns((all) => all.map((t) => (t.id === base.id ? turn : t)))
     }
-    update({ id, question, lang, state: "loading" })
+    update({ ...base, state: "loading" })
     try {
       conversationId.current ??= api.startConversation(docId).then((c) => c.id)
-      const answer = await api.ask(await conversationId.current, question, lang)
-      update({ id, question, lang, state: "done", answer })
+      const answer = await api.ask(await conversationId.current, base.question, base.lang, base.selection)
+      update({ ...base, state: "done", answer })
     } catch (error) {
       if (generation.current === started) conversationId.current = null // a failed start must not stick
-      update({ id, question, lang, state: "error", error: error instanceof Error ? error.message : "Something went wrong. Retry." })
+      update({ ...base, state: "error", error: error instanceof Error ? error.message : "Something went wrong. Retry." })
     }
   }, [docId])
 
-  const ask = useCallback((question: string, lang: Lang) => {
-    const id = nextId.current++
-    setTurns((all) => [...all, { id, question, lang, state: "loading" }])
-    return run(id, question, lang)
+  const ask = useCallback((question: string | null, lang: Lang, selection: Selection | null = null) => {
+    const base: TurnBase = { id: nextId.current++, question, selection, lang }
+    setTurns((all) => [...all, { ...base, state: "loading" }])
+    return run(base)
   }, [run])
 
-  const retry = useCallback((turn: Turn) => run(turn.id, turn.question, turn.lang), [run])
+  const retry = useCallback(
+    (turn: Turn) => run({ id: turn.id, question: turn.question, selection: turn.selection, lang: turn.lang }),
+    [run],
+  )
 
   const busy = turns.some((t) => t.state === "loading")
   return { turns, ask, retry, busy }

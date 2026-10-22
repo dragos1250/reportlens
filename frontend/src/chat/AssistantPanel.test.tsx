@@ -4,26 +4,35 @@ import { delay, http, HttpResponse } from "msw"
 import { useState } from "react"
 import { describe, expect, it, vi } from "vitest"
 
-import type { Passage } from "../api/types"
+import type { Lang, Passage, Selection } from "../api/types"
 import { assistantMessage, server } from "../test/server"
 import { AssistantPanel } from "./AssistantPanel"
 import { useConversation } from "./useConversation"
 
 /** The panel with the real conversation hook, against the mock API. */
-function Harness({ onCite = vi.fn(), onSearchReport = vi.fn() }: {
+function Harness({ onCite = vi.fn(), onSearchReport = vi.fn(), onShowSelection = vi.fn(), selection = null }: {
   onCite?: (p: Passage) => void
   onSearchReport?: (question: string) => void
+  onShowSelection?: (selection: Selection) => void
+  selection?: Selection | null
 }) {
   const conversation = useConversation("sample-report")
   const [active, setActive] = useState<string | null>(null)
+  const [lang, setLang] = useState<Lang>("auto")
+  const [pending, setPending] = useState<Selection | null>(selection)
   return (
     <AssistantPanel
       turns={conversation.turns}
       busy={conversation.busy}
       activeChunkId={active}
+      lang={lang}
+      onLang={setLang}
+      pendingSelection={pending}
+      onClearSelection={() => setPending(null)}
       onAsk={conversation.ask}
       onRetry={conversation.retry}
       onCite={(p) => { setActive(p.chunkId); onCite(p) }}
+      onShowSelection={onShowSelection}
       onSearchReport={onSearchReport}
     />
   )
@@ -117,5 +126,56 @@ describe("AssistantPanel", () => {
     await userEvent.type(screen.getByLabelText("Ask about the report"), "What was total revenue?{Enter}")
     expect(await screen.findByRole("button", { name: "Show page 17" })).toBeInTheDocument()
     expect(screen.getByLabelText("Ask about the report")).toHaveValue("")
+  })
+})
+
+describe("AssistantPanel with a selection", () => {
+  const SELECTION: Selection = { page: 25, text: "Cash €9.0 billion and undrawn committed facilities." }
+
+  it("sends Ask about this with the question and the selection, then quotes the selection", async () => {
+    let sent: unknown
+    const onShowSelection = vi.fn()
+    server.use(http.post("*/api/conversations/:id/messages", async ({ request }) => {
+      sent = await request.json()
+      return HttpResponse.json(assistantMessage({
+        status: "explained", content: "The group had €9.0 billion in cash.", citations: [], passages: [], selection: SELECTION,
+      }), { status: 201 })
+    }))
+    render(<Harness selection={SELECTION} onShowSelection={onShowSelection} />)
+
+    expect(screen.getByText(/The answer uses only this text\./)).toBeInTheDocument()
+    await ask("How much cash?")
+    expect(sent).toEqual({ question: "How much cash?", lang: null, selection: SELECTION })
+    expect(screen.queryByText(/The answer uses only this text\./)).toBeNull()
+
+    expect(await screen.findByText("The group had €9.0 billion in cash.")).toBeInTheDocument()
+    expect(screen.getByText("Based only on this text, not the whole report.")).toBeInTheDocument()
+    expect(screen.getByText("How much cash?")).toBeInTheDocument()
+    await userEvent.click(screen.getByRole("button", { name: "Show the selection on page 25" }))
+    expect(onShowSelection).toHaveBeenCalledWith(SELECTION)
+  })
+
+  it("can drop the selection before asking", async () => {
+    let sent: unknown
+    server.use(http.post("*/api/conversations/:id/messages", async ({ request }) => {
+      sent = await request.json()
+      return HttpResponse.json(assistantMessage(), { status: 201 })
+    }))
+    render(<Harness selection={SELECTION} />)
+    await userEvent.click(screen.getByRole("button", { name: "Remove the selected text" }))
+    await ask("What was total revenue?")
+    expect(sent).toEqual({ question: "What was total revenue?", lang: null })
+  })
+
+  it("shows a calm block, not an error, when the selection cannot be explained", async () => {
+    server.use(http.post("*/api/conversations/:id/messages", () => HttpResponse.json(assistantMessage({
+      status: "not_enough", content: "The selected text does not say enough to explain it.", citations: [], passages: [],
+      model: null, costUsd: null,
+    }), { status: 201 })))
+    render(<Harness selection={SELECTION} />)
+    await ask("Why?")
+    expect(await screen.findByText("Nothing to explain from this selection")).toBeInTheDocument()
+    expect(screen.getByText("The selected text does not say enough to explain it.")).toBeInTheDocument()
+    expect(screen.queryByRole("alert")).toBeNull()
   })
 })
