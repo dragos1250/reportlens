@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <title>ReportLens</title>
+  <rect width="32" height="32" rx="7" fill="#0F1720"/>
+  <rect x="12.5" y="9.5" width="11" height="15" rx="2" fill="none" stroke="#6F8191" stroke-width="1.5"/>
+  <rect x="8.5" y="6.5" width="11" height="15" rx="2" fill="#0F1720" stroke="#E6EDF3" stroke-width="1.5"/>
+  <rect x="11" y="10.5" width="6" height="2" rx="1" fill="#FFE14D"/>
+</svg>

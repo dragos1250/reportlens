@@ -1,0 +1,58 @@
+@import "tailwindcss";
+
+/* Design tokens from docs/DESIGN.md, defined once. Tailwind turns them into utilities:
+   bg-app, text-secondary, border-line, bg-accent, font-ui, font-reading, ... */
+@theme {
+  --color-app: #0f1720;
+  --color-app-deep: #0b121a;
+  --color-panel: #151f2b;
+  --color-panel-raised: #1a2633;
+  --color-panel-soft: #111b25;
+  --color-viewer: #111a23;
+  --color-rail: #0c141c;
+  --color-text: #e6edf3;
+  --color-secondary: #9fb0c0;
+  --color-muted: #6f8191; /* decorative only, never for text the user must read */
+  --color-accent: #ffe14d;
+  --color-accent-ink: #221f0b;
+  --color-teal: #4fd1b5;
+  --color-line: rgb(230 237 243 / 0.11);
+  --color-line-strong: rgb(230 237 243 / 0.18);
+  --color-paper: #e8e3d7;
+
+  --font-ui: "Schibsted Grotesk Variable", system-ui, sans-serif;
+  --font-reading: "Source Serif 4 Variable", Georgia, serif;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-app);
+    color: var(--color-text);
+    font-family: var(--font-ui);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Visible keyboard focus everywhere (the prototype had none). */
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
