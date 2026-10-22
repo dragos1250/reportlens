@@ -5,6 +5,7 @@ import type { DocumentInfo } from "../api/types"
 import { BrandMark } from "../components/BrandMark"
 import { Icon } from "../components/Icon"
 import { readFlag, writeFlag } from "../lib/storage"
+import { PageRail } from "../pdf/PageRail"
 import { PdfViewer } from "../pdf/PdfViewer"
 import { clampPage, ViewerToolbar } from "../pdf/ViewerToolbar"
 
@@ -15,6 +16,10 @@ export function Workspace({ document, onClose }: { document: DocumentInfo; onClo
   const [page, setPage] = useState(1)
   const [zoom, setZoom] = useState(1)
   const [night, setNight] = useState(() => readFlag(NIGHT_KEY, false))
+
+  function goTo(next: number) {
+    setPage(clampPage(next, pages ?? 1))
+  }
 
   function toggleNight() {
     setNight((value) => {
@@ -52,10 +57,12 @@ export function Workspace({ document, onClose }: { document: DocumentInfo; onClo
         </button>
       </header>
 
-      <section aria-label="Report" className="grid min-h-0 grid-rows-[48px_1fr] bg-viewer">
-        <ViewerToolbar page={page} pages={pages} zoom={zoom}
-                       onPage={(next) => setPage(clampPage(next, pages ?? 1))} onZoom={setZoom} />
-        <PdfViewer fileUrl={api.pdfUrl(document.docId)} page={page} zoom={zoom} night={night} onLoaded={setPages} />
+      <section aria-label="Report" className="grid min-h-0 grid-cols-[28px_1fr] md:grid-cols-[42px_1fr]">
+        <PageRail pages={pages} current={page} cited={[]} onPage={goTo} />
+        <div className="grid min-h-0 min-w-0 grid-rows-[48px_1fr] bg-viewer">
+          <ViewerToolbar page={page} pages={pages} zoom={zoom} onPage={goTo} onZoom={setZoom} />
+          <PdfViewer fileUrl={api.pdfUrl(document.docId)} page={page} zoom={zoom} night={night} onLoaded={setPages} />
+        </div>
       </section>
     </div>
   )
