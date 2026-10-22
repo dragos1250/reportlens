@@ -1,7 +1,9 @@
 import { useState } from "react"
 
 import { api } from "../api/client"
-import type { DocumentInfo } from "../api/types"
+import type { DocumentInfo, Passage } from "../api/types"
+import { AssistantPanel } from "../chat/AssistantPanel"
+import { useConversation } from "../chat/useConversation"
 import { BrandMark } from "../components/BrandMark"
 import { Icon } from "../components/Icon"
 import { readFlag, writeFlag } from "../lib/storage"
@@ -16,16 +18,27 @@ export function Workspace({ document, onClose }: { document: DocumentInfo; onClo
   const [page, setPage] = useState(1)
   const [zoom, setZoom] = useState(1)
   const [night, setNight] = useState(() => readFlag(NIGHT_KEY, false))
+  const [active, setActive] = useState<Passage | null>(null)
+  const conversation = useConversation(document.docId)
+
+  const citedPages = conversation.turns.flatMap((turn) =>
+    turn.state === "done" ? turn.answer.passages.filter((p) => p.cited).map((p) => p.page) : [],
+  )
 
   function goTo(next: number) {
     setPage(clampPage(next, pages ?? 1))
   }
 
+  /** A citation was clicked: always jump to its page, and remember the passage to mark. */
+  function showPassage(passage: Passage) {
+    setActive(passage)
+    goTo(passage.page)
+  }
+
   function toggleNight() {
-    setNight((value) => {
-      writeFlag(NIGHT_KEY, !value)
-      return !value
-    })
+    const next = !night
+    setNight(next)
+    writeFlag(NIGHT_KEY, next)
   }
 
   return (
@@ -57,13 +70,23 @@ export function Workspace({ document, onClose }: { document: DocumentInfo; onClo
         </button>
       </header>
 
-      <section aria-label="Report" className="grid min-h-0 grid-cols-[28px_1fr] md:grid-cols-[42px_1fr]">
-        <PageRail pages={pages} current={page} cited={[]} onPage={goTo} />
-        <div className="grid min-h-0 min-w-0 grid-rows-[48px_1fr] bg-viewer">
-          <ViewerToolbar page={page} pages={pages} zoom={zoom} onPage={goTo} onZoom={setZoom} />
-          <PdfViewer fileUrl={api.pdfUrl(document.docId)} page={page} zoom={zoom} night={night} onLoaded={setPages} />
-        </div>
-      </section>
+      <div className="grid min-h-0 md:grid-cols-[minmax(0,1fr)_440px]">
+        <section aria-label="Report" className="grid min-h-0 grid-cols-[28px_1fr] md:grid-cols-[42px_1fr]">
+          <PageRail pages={pages} current={page} cited={citedPages} onPage={goTo} />
+          <div className="grid min-h-0 min-w-0 grid-rows-[48px_1fr] bg-viewer">
+            <ViewerToolbar page={page} pages={pages} zoom={zoom} onPage={goTo} onZoom={setZoom} />
+            <PdfViewer fileUrl={api.pdfUrl(document.docId)} page={page} zoom={zoom} night={night} onLoaded={setPages} />
+          </div>
+        </section>
+        <AssistantPanel
+          turns={conversation.turns}
+          busy={conversation.busy}
+          activeChunkId={active?.chunkId ?? null}
+          onAsk={conversation.ask}
+          onRetry={conversation.retry}
+          onCite={showPassage}
+        />
+      </div>
     </div>
   )
 }
