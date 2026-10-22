@@ -6,6 +6,8 @@ interface Props {
   message: Message
   onPage: (passage: Passage) => void
   onRephrase: () => void
+  /** Opens the exact text search (no AI) over the report. */
+  onSearchReport: () => void
 }
 
 /**
@@ -13,7 +15,7 @@ interface Props {
  * support an answer (their pages are listed). not_in_report: nothing came close enough to
  * check, so no LLM call was made.
  */
-export function NotInReport({ message, onPage, onRephrase }: Props) {
+export function NotInReport({ message, onPage, onRephrase, onSearchReport }: Props) {
   const pages = checkedPages(message.passages)
   return (
     <div className="pt-1">
@@ -42,13 +44,23 @@ export function NotInReport({ message, onPage, onRephrase }: Props) {
           <p className="m-0 mt-4 text-xs text-secondary">No passage was close enough to check.</p>
         )}
       </div>
-      <button
-        type="button"
-        onClick={onRephrase}
-        className="mt-3 min-h-11 rounded-lg px-3 text-sm text-secondary hover:text-text"
-      >
-        Rephrase
-      </button>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={onSearchReport}
+          className="flex min-h-11 items-center gap-2 rounded-lg border border-line-strong px-3 text-sm text-text hover:border-accent md:min-h-9"
+        >
+          <Icon name="search" size={16} />
+          Search the report text
+        </button>
+        <button
+          type="button"
+          onClick={onRephrase}
+          className="min-h-11 rounded-lg px-3 text-sm text-secondary hover:text-text md:min-h-9"
+        >
+          Rephrase
+        </button>
+      </div>
     </div>
   )
 }

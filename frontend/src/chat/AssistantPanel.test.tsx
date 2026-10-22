@@ -10,7 +10,10 @@ import { AssistantPanel } from "./AssistantPanel"
 import { useConversation } from "./useConversation"
 
 /** The panel with the real conversation hook, against the mock API. */
-function Harness({ onCite = vi.fn() }: { onCite?: (p: Passage) => void }) {
+function Harness({ onCite = vi.fn(), onSearchReport = vi.fn() }: {
+  onCite?: (p: Passage) => void
+  onSearchReport?: (question: string) => void
+}) {
   const conversation = useConversation("sample-report")
   const [active, setActive] = useState<string | null>(null)
   return (
@@ -21,6 +24,7 @@ function Harness({ onCite = vi.fn() }: { onCite?: (p: Passage) => void }) {
       onAsk={conversation.ask}
       onRetry={conversation.retry}
       onCite={(p) => { setActive(p.chunkId); onCite(p) }}
+      onSearchReport={onSearchReport}
     />
   )
 }
@@ -78,6 +82,8 @@ describe("AssistantPanel", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument() // not styled as an error
     expect(screen.getByRole("button", { name: "Show checked page 11" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Show checked page 17" })).toBeInTheDocument()
+
+    expect(screen.getByRole("button", { name: "Search the report text" })).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole("button", { name: "Rephrase" }))
     expect(screen.getByLabelText("Ask about the report")).toHaveValue("How many bitcoins does it hold?")

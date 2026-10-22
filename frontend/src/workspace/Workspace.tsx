@@ -161,6 +161,7 @@ export function Workspace({ document, onClose }: { document: DocumentInfo; onClo
               onAsk={conversation.ask}
               onRetry={conversation.retry}
               onCite={showPassage}
+              onSearchReport={openSearch}
             />
           </ErrorBoundary>
         </div>

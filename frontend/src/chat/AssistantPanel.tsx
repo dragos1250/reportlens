@@ -14,9 +14,11 @@ interface Props {
   onAsk: (question: string, lang: Lang) => void
   onRetry: (turn: Turn) => void
   onCite: (passage: Passage) => void
+  /** "Search the report text" after a refusal; the question is passed as a hint only. */
+  onSearchReport: (question: string) => void
 }
 
-export function AssistantPanel({ turns, busy, activeChunkId, onAsk, onRetry, onCite }: Props) {
+export function AssistantPanel({ turns, busy, activeChunkId, onAsk, onRetry, onCite, onSearchReport }: Props) {
   const [draft, setDraft] = useState("")
   const [lang, setLang] = useState<Lang>("auto")
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -67,7 +69,8 @@ export function AssistantPanel({ turns, busy, activeChunkId, onAsk, onRetry, onC
             <h2 className="m-0 mb-1 text-xs font-medium text-secondary">You asked</h2>
             <p className="m-0 mb-4 text-[15px] leading-normal font-semibold tracking-tight">{turn.question}</p>
             <TurnBody turn={turn} isLast={turn === lastDone} activeChunkId={activeChunkId}
-                      onCite={onCite} onRetry={onRetry} onRephrase={() => rephrase(turn.question)} />
+                      onCite={onCite} onRetry={onRetry} onRephrase={() => rephrase(turn.question)}
+                      onSearchReport={() => onSearchReport(turn.question)} />
           </article>
         ))}
         <div ref={endRef} />
@@ -79,13 +82,14 @@ export function AssistantPanel({ turns, busy, activeChunkId, onAsk, onRetry, onC
   )
 }
 
-function TurnBody({ turn, isLast, activeChunkId, onCite, onRetry, onRephrase }: {
+function TurnBody({ turn, isLast, activeChunkId, onCite, onRetry, onRephrase, onSearchReport }: {
   turn: Turn
   isLast: boolean
   activeChunkId: string | null
   onCite: (passage: Passage) => void
   onRetry: (turn: Turn) => void
   onRephrase: () => void
+  onSearchReport: () => void
 }) {
   if (turn.state === "loading") {
     return <p className="m-0 animate-pulse text-sm text-secondary">Searching the report…</p>
@@ -96,7 +100,7 @@ function TurnBody({ turn, isLast, activeChunkId, onCite, onRetry, onRephrase }: 
 
   const message = turn.answer
   if (message.status === "not_found" || message.status === "not_in_report") {
-    return <NotInReport message={message} onPage={onCite} onRephrase={onRephrase} />
+    return <NotInReport message={message} onPage={onCite} onRephrase={onRephrase} onSearchReport={onSearchReport} />
   }
   if (message.status !== "answered") {
     // incomplete or invalid_output: the answer could not be completed or checked.

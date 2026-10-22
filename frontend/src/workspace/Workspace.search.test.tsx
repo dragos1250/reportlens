@@ -1,8 +1,9 @@
 import { act, render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import { http, HttpResponse } from "msw"
 import { describe, expect, it, vi } from "vitest"
 
-import { DOCUMENT } from "../test/server"
+import { assistantMessage, DOCUMENT, server } from "../test/server"
 import { Workspace } from "./Workspace"
 
 // The viewer is a stand-in exposing its props (pdf.js needs a canvas); the search itself
@@ -83,5 +84,26 @@ describe("Report text search", () => {
     const panel = await search("satellites")
     await userEvent.click(within(panel).getByRole("button", { name: "Close search" }))
     expect(screen.queryByRole("region", { name: "Search the report text" })).not.toBeInTheDocument()
+  })
+})
+
+describe("Search the report text after a refusal", () => {
+  it("opens the search with an empty field, the question as a hint, on the Report tab", async () => {
+    server.use(http.post("*/api/conversations/:id/messages", () =>
+      HttpResponse.json(assistantMessage({ status: "not_found", content: "Not in the passages.", citations: [],
+        passages: assistantMessage().passages.map((p) => ({ ...p, cited: false })) }), { status: 201 })))
+    openWorkspace()
+    await userEvent.click(screen.getByRole("tab", { name: "Assistant" }))
+    await userEvent.type(screen.getByLabelText("Ask about the report"), "How many bitcoins does it hold?{Enter}")
+
+    // The toolbar has a button with the same name and action; use the one in the refusal.
+    const assistant = screen.getByRole("complementary", { name: "Report assistant" })
+    await userEvent.click(await within(assistant).findByRole("button", { name: "Search the report text" }))
+
+    const panel = screen.getByRole("region", { name: "Search the report text" })
+    expect(within(panel).getByLabelText("Search the report text")).toHaveValue("")
+    expect(within(panel).getByLabelText("Search the report text")).toHaveFocus()
+    expect(panel).toHaveTextContent("Your question: “How many bitcoins does it hold?”")
+    expect(screen.getByRole("tab", { name: "Report" })).toHaveAttribute("aria-selected", "true")
   })
 })
