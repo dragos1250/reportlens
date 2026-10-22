@@ -36,7 +36,8 @@ def pg_doc():
         from storage.db import apply_schema, connect
         conn = connect()
     except Exception:
-        pytest.skip("PostgreSQL not available (docker compose up -d db, POSTGRES_PASSWORD)")
+        pytest.skip("PostgreSQL not available on 127.0.0.1 (docker compose -f docker-compose.yml "
+                    "-f docker-compose.dev.yml up -d db, POSTGRES_PASSWORD)")
     apply_schema(conn)
     doc_id = f"test-{uuid.uuid4().hex[:8]}"
     with conn.transaction():

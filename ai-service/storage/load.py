@@ -1,6 +1,6 @@
 """CLI: load a document's chunks and vectors from data/processed/ into PostgreSQL.
 
-Usage (from ai-service/, database running: docker compose up -d db):
+Usage (from ai-service/, database port published: docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d db):
     python -m storage.load --doc-id vodafone-20f-fy26 [--model intfloat/multilingual-e5-small]
 
 Reloading replaces that document's rows (and only those) in one transaction.

@@ -94,6 +94,31 @@ the phone layout were not checked in a browser in this session (see the manual c
 in the stage report). The data path behind them was checked for real: PDF ranges through
 the dev proxy, answers and refusals through `/api`.
 
+### A bug only Docker showed: pdf.js's worker sent with the wrong type
+
+In the Docker version the viewer did not start. The browser refused
+`/assets/pdf.worker.min-*.mjs` ("non-JavaScript MIME type of application/octet-stream"), pdf.js
+then failed to set up its worker, and the viewer's error boundary showed "failed to render".
+`curl -I` on that file from the frontend container confirmed `Content-Type:
+application/octet-stream`: nginx's `mime.types` maps `.js` but not `.mjs`, and module scripts
+must have a JavaScript type. The fix is a `location ~* \.mjs$` block in `nginx.conf` that sets
+`text/javascript` for that location only (a `types` block at server level would replace the
+whole list and break `.js` and `.css`).
+
+**Why no test caught it.** The unit tests run in Node with jsdom and a stand-in for the viewer:
+they never ask nginx for a file and never run pdf.js's worker. The Vite dev server, used for
+every manual check so far, serves `.mjs` correctly. The Docker check of stage 11 fetched
+`index.html`, `/api` and a PDF range through nginx, not the JavaScript assets, and did not open
+a real browser.
+
+**Now checked:** `python scripts/check_nginx.py` starts nginx with `frontend/nginx.conf` and
+sample files and checks the content type of `.js`, `.mjs` and `.css`, that the app's routes
+return `index.html`, that `/actuator` is a 404 and that a missing module is a 404, not
+`index.html`. It failed on the old config (2 checks) and passes on the new one in about a
+second. `--image reportlens-frontend` runs the same checks on the built image with its real
+asset names. It still does not render a page: a check in a real browser is on the list for
+the evaluation stage.
+
 ## Report text search (exact, no AI)
 
 The "Not in this report" block and the viewer toolbar open a search over the report's own

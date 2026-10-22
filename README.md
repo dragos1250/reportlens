@@ -184,6 +184,8 @@ Then open **http://127.0.0.1:5173**.
 cd ai-service; .\.venv\Scripts\python.exe -m pytest -q; cd ..
 cd backend; .\mvnw.cmd test; cd ..
 cd frontend; npm test; cd ..
+# nginx as in Docker: content types (.js, .mjs, .css), the app's routes, 404s; needs Docker
+py -3.11 scripts/check_nginx.py
 ```
 
 ## 📏 Evaluation
@@ -221,7 +223,7 @@ English text.
 - [x] 🆚 Compare two reports (the formal evaluation still covers the Vodafone report only; it is extended in the evaluation stage)
 - [x] 🐳 Docker Compose: the whole app with one command
 - [ ] 🖼️ Screenshots in this README
-- [ ] 📏 Evaluation page and full test set
+- [ ] 📏 Evaluation page and full test set, plus a check that the PDF viewer renders in a real browser
 - [ ] 📤 Upload a PDF, ingest it in the background with progress, compare two uploaded reports
 - [ ] 🌐 Public demo (only with the protections above, after the evaluation)
 
