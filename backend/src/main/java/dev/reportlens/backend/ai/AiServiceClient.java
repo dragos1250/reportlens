@@ -1,6 +1,8 @@
 package dev.reportlens.backend.ai;
 
 import dev.reportlens.backend.conversation.NotFoundException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -8,8 +10,12 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * HTTP client for the FastAPI service. The backend never calls the LLM itself:
@@ -17,6 +23,8 @@ import java.util.List;
  */
 @Component
 public class AiServiceClient {
+
+    private static final Logger log = LoggerFactory.getLogger(AiServiceClient.class);
 
     private final RestClient http;
 
@@ -56,14 +64,79 @@ public class AiServiceClient {
                         if (status != 200 && status != 206 && status != 416) {
                             throw new AiServiceException("PDF request failed with status " + status, null);
                         }
-                        try (OutputStream out = sink.start(status, pdfHeaders(response.getHeaders()))) {
-                            response.getBody().transferTo(out);
-                        }
+                        // From here on the browser has the status and headers: errors can
+                        // no longer become a 502, so copy() decides what each one means.
+                        copy(docId, response.getBody(), sink.start(status, pdfHeaders(response.getHeaders())));
                         return null;
                     });
         } catch (RestClientException e) {
+            // Nothing was sent to the browser yet (connection refused, timeout): a real 502.
             throw new AiServiceException("could not get the PDF", e);
         }
+    }
+
+    /**
+     * Copies the PDF bytes while they arrive and tells apart who stopped the transfer:
+     * <ul>
+     *   <li>the browser left (pdf.js cancels requests, the page reloads): normal, DEBUG only;</li>
+     *   <li>the AI service stopped mid-transfer: WARN in one line, nothing else can be sent;</li>
+     *   <li>any other write error is unexpected and is rethrown.</li>
+     * </ul>
+     */
+    static void copy(String docId, InputStream in, OutputStream out) {
+        byte[] buffer = new byte[8192];
+        while (true) {
+            int read;
+            try {
+                read = in.read(buffer);
+            } catch (IOException e) {
+                log.warn("AI service stopped while streaming the PDF of {}: {}", docId, e.toString());
+                return;
+            }
+            if (read == -1) {
+                break;
+            }
+            if (!write(docId, out, buffer, read)) {
+                return;
+            }
+        }
+        write(docId, out, buffer, 0); // flush
+    }
+
+    /** False if the browser has gone, so the copy stops quietly. */
+    private static boolean write(String docId, OutputStream out, byte[] buffer, int length) {
+        try {
+            if (length > 0) {
+                out.write(buffer, 0, length);
+            } else {
+                out.flush();
+            }
+            return true;
+        } catch (IOException e) {
+            if (isClientGone(e)) {
+                log.debug("Browser closed the connection while receiving the PDF of {}: {}", docId, e.toString());
+                return false;
+            }
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * Only the signs of a browser that disconnected: Tomcat's ClientAbortException (matched
+     * by name, to keep the servlet container out of this class) or a "connection reset" /
+     * "broken pipe" anywhere in the cause chain. Other IO errors are not hidden.
+     */
+    static boolean isClientGone(Throwable error) {
+        for (Throwable e = error; e != null; e = e.getCause()) {
+            if (e.getClass().getSimpleName().equals("ClientAbortException")) {
+                return true;
+            }
+            String message = e.getMessage() == null ? "" : e.getMessage().toLowerCase(Locale.ROOT);
+            if (message.contains("connection reset") || message.contains("broken pipe")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Only the headers the browser needs to read a (partial) PDF. */
