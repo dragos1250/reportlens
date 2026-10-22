@@ -6,6 +6,7 @@ import type { DocumentInfo, Passage } from "../api/types"
 import { AssistantPanel } from "../chat/AssistantPanel"
 import { useConversation } from "../chat/useConversation"
 import { BrandMark } from "../components/BrandMark"
+import { ErrorBoundary } from "../components/ErrorBoundary"
 import { Icon } from "../components/Icon"
 import { readFlag, writeFlag } from "../lib/storage"
 import { findPassage, renderItem, type TextItemLike } from "../pdf/highlight"
@@ -109,14 +110,18 @@ export function Workspace({ document, onClose }: { document: DocumentInfo; onClo
           </div>
         </section>
         <div id="pane-assistant" className={`min-h-0 md:grid ${tab === "assistant" ? "grid" : "hidden"}`}>
-        <AssistantPanel
-          turns={conversation.turns}
-          busy={conversation.busy}
-          activeChunkId={active?.chunkId ?? null}
-          onAsk={conversation.ask}
-          onRetry={conversation.retry}
-          onCite={showPassage}
-        />
+          {/* A failure in the panel must not take the PDF down with it; the conversation
+              lives in this component, so reloading the panel keeps it. */}
+          <ErrorBoundary name="The assistant" onReload={() => setActive(null)} className="border-l border-line">
+            <AssistantPanel
+              turns={conversation.turns}
+              busy={conversation.busy}
+              activeChunkId={active?.chunkId ?? null}
+              onAsk={conversation.ask}
+              onRetry={conversation.retry}
+              onCite={showPassage}
+            />
+          </ErrorBoundary>
         </div>
       </div>
 
