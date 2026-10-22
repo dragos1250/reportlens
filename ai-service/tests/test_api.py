@@ -114,3 +114,52 @@ def test_llm_failure_becomes_502_without_details():
                                                                    "method": "semantic"})
     assert response.status_code == 502
     assert "sk-secret" not in response.text
+
+
+PDF_BYTES = b"%PDF-1.7\n" + bytes(range(256)) * 40 + b"\n%%EOF\n"
+
+
+def pdf_client(tmp_path, known=("d",)):
+    (tmp_path / "d.pdf").write_bytes(PDF_BYTES)
+    services = Services(documents=lambda: [Document(doc_id=k, title="t", chunks=1) for k in known],
+                        searcher_for=lambda doc_id, method: None, llm=lambda: None,
+                        pdf_path=lambda doc_id: tmp_path / f"{doc_id}.pdf")
+    return TestClient(create_app(services))
+
+
+def test_pdf_is_served_whole(tmp_path):
+    response = pdf_client(tmp_path).get("/documents/d/pdf")
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/pdf"
+    assert response.headers["accept-ranges"] == "bytes"
+    assert response.content == PDF_BYTES
+
+
+def test_pdf_range_request_returns_only_that_part(tmp_path):
+    response = pdf_client(tmp_path).get("/documents/d/pdf", headers={"Range": "bytes=0-99"})
+    assert response.status_code == 206
+    assert response.headers["content-range"] == f"bytes 0-99/{len(PDF_BYTES)}"
+    assert response.content == PDF_BYTES[:100]
+
+
+def test_pdf_of_unknown_document_is_404_even_if_a_file_exists(tmp_path):
+    (tmp_path / "secret.pdf").write_bytes(PDF_BYTES)
+    assert pdf_client(tmp_path).get("/documents/secret/pdf").status_code == 404
+
+
+def test_known_document_without_pdf_file_is_404(tmp_path):
+    assert pdf_client(tmp_path, known=("d", "other")).get("/documents/other/pdf").status_code == 404
+
+
+def test_default_pdf_path_stays_inside_the_raw_folder():
+    from api.main import RAW_DIR, default_services
+    pdf_path = default_services(store="files").pdf_path
+    assert pdf_path("vodafone-20f-fy26") == (RAW_DIR / "vodafone-20f-fy26.pdf").resolve()
+    assert pdf_path("../../.env") is None
+
+
+def test_answer_marked_keeps_the_passage_markers():
+    api, _ = client(llm_output("answered", "Revenue was €40.5 billion [P1].", ["P1"]))
+    body = api.post("/ask", json={"question": "Total revenue?", "doc_id": "d", "method": "semantic"}).json()
+    assert body["answer_marked"] == "Revenue was €40.5 billion [P1]."
+    assert body["answer"] == "Revenue was €40.5 billion [d, p. 11]."

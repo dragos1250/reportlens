@@ -49,6 +49,7 @@ class AskResponse(BaseModel):
     # answered | not_found (LLM) | not_in_report (guard) | incomplete | invalid_output
     status: str
     answer: str  # citations rendered as [doc, p. N]
+    answer_marked: str  # the same text with the model's [P1].. markers, for clickable citations
     question: str
     search_query: str
     best_score: float | None

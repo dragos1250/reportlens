@@ -15,6 +15,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
 
 from generation.answer import Answer, answer_question
 from generation.llm import LLMClient
@@ -24,6 +25,7 @@ from .schemas import AskRequest, AskResponse, Citation, Document, Health, Passag
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = REPO_ROOT / "scripts" / "reports.json"
+RAW_DIR = REPO_ROOT / "data" / "raw"  # where scripts/download_reports.py saves <doc_id>.pdf
 
 
 @dataclass
@@ -33,6 +35,7 @@ class Services:
     documents: Callable[[], list[Document]]
     searcher_for: Callable[[str, str], Searcher]  # (doc_id, method) -> Searcher
     llm: Callable[[], LLMClient]
+    pdf_path: Callable[[str], Path | None] = lambda doc_id: None  # PDF of a known document, if on disk
 
 
 def to_response(answer: Answer) -> AskResponse:
@@ -41,6 +44,7 @@ def to_response(answer: Answer) -> AskResponse:
     return AskResponse(
         status=answer.status,
         answer=answer.rendered,
+        answer_marked=answer.text,
         question=answer.question,
         search_query=answer.search_query,
         best_score=answer.best_score,
@@ -69,6 +73,18 @@ def create_app(services: Services) -> FastAPI:
     @app.get("/documents")
     def documents() -> list[Document]:
         return services.documents()
+
+    @app.get("/documents/{doc_id}/pdf")
+    def pdf(doc_id: str) -> FileResponse:
+        """The report PDF. FileResponse answers Range requests (206), so pdf.js can load
+        a 32 MB file page by page instead of downloading it whole."""
+        if doc_id not in {d.doc_id for d in services.documents()}:
+            raise HTTPException(status_code=404, detail=f"unknown doc_id {doc_id!r}")
+        path = services.pdf_path(doc_id)
+        if path is None or not path.is_file():
+            raise HTTPException(status_code=404, detail=f"no PDF on disk for {doc_id!r}")
+        return FileResponse(path, media_type="application/pdf", filename=f"{doc_id}.pdf",
+                            content_disposition_type="inline")
 
     @app.post("/ask")
     def ask(request: AskRequest) -> AskResponse:
@@ -120,7 +136,13 @@ def default_services(store: str | None = None) -> Services:
     def llm() -> LLMClient:
         return client_from_env()
 
-    return Services(documents=documents, searcher_for=searcher_for, llm=llm)
+    def pdf_path(doc_id: str) -> Path | None:
+        """Only for document ids the database knows (checked by the endpoint), and only
+        inside data/raw/: the path is never taken from the request as given."""
+        path = (RAW_DIR / f"{doc_id}.pdf").resolve()
+        return path if path.parent == RAW_DIR.resolve() else None
+
+    return Services(documents=documents, searcher_for=searcher_for, llm=llm, pdf_path=pdf_path)
 
 
 app = create_app(default_services())
