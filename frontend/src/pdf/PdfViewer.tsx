@@ -22,6 +22,7 @@ interface Props {
   onLoaded: (pages: number) => void
   customTextRenderer?: CustomTextRenderer
   onGetTextSuccess?: OnGetTextSuccess
+  notice?: string | null // shown above the page, e.g. when a passage could not be marked
 }
 
 /** Measures the stage so that zoom 100% means "fit width". */
@@ -38,12 +39,20 @@ function useWidth<T extends HTMLElement>() {
   return [ref, width] as const
 }
 
-export function PdfViewer({ fileUrl, page, zoom, night, onLoaded, customTextRenderer, onGetTextSuccess }: Props) {
+export function PdfViewer({ fileUrl, page, zoom, night, onLoaded, customTextRenderer, onGetTextSuccess, notice }: Props) {
   const [stageRef, stageWidth] = useWidth<HTMLDivElement>()
   const pageWidth = Math.max(240, Math.min(stageWidth - 32, 900)) * zoom
 
+  /** Bring the first highlighted line into view once the text layer is drawn. */
+  function revealHighlight() {
+    stageRef.current?.querySelector("mark.rl-mark")?.scrollIntoView({ block: "center", behavior: "smooth" })
+  }
+
   return (
     <div ref={stageRef} className="min-h-0 overflow-auto px-4 pt-6 pb-16 md:px-12 md:pt-9">
+      <p aria-live="polite" className={notice ? "mx-auto mb-4 max-w-[600px] rounded-lg border border-line-strong bg-panel px-3 py-2 text-center text-xs text-secondary" : "sr-only"}>
+        {notice ?? ""}
+      </p>
       <Document
         file={fileUrl}
         options={PDF_OPTIONS}
@@ -68,6 +77,7 @@ export function PdfViewer({ fileUrl, page, zoom, night, onLoaded, customTextRend
             renderAnnotationLayer={false}
             customTextRenderer={customTextRenderer}
             onGetTextSuccess={onGetTextSuccess}
+            onRenderTextLayerSuccess={revealHighlight}
             loading={<div style={{ width: pageWidth, height: pageWidth * 1.29 }} />}
           />
         </div>

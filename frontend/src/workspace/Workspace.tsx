@@ -1,4 +1,5 @@
-import { useState } from "react"
+import { useCallback, useMemo, useState } from "react"
+import type { TextContent } from "react-pdf/dist/shared/types.js"
 
 import { api } from "../api/client"
 import type { DocumentInfo, Passage } from "../api/types"
@@ -7,6 +8,7 @@ import { useConversation } from "../chat/useConversation"
 import { BrandMark } from "../components/BrandMark"
 import { Icon } from "../components/Icon"
 import { readFlag, writeFlag } from "../lib/storage"
+import { findPassage, renderItem, type TextItemLike } from "../pdf/highlight"
 import { PageRail } from "../pdf/PageRail"
 import { PdfViewer } from "../pdf/PdfViewer"
 import { clampPage, ViewerToolbar } from "../pdf/ViewerToolbar"
@@ -20,6 +22,28 @@ export function Workspace({ document, onClose }: { document: DocumentInfo; onClo
   const [night, setNight] = useState(() => readFlag(NIGHT_KEY, false))
   const [active, setActive] = useState<Passage | null>(null)
   const conversation = useConversation(document.docId)
+  const [pageText, setPageText] = useState<{ page: number; items: TextItemLike[] } | null>(null)
+
+  // The cited passage's place on the shown page, recomputed when the page text or the
+  // passage changes. No match: nothing is marked, the jump still happened.
+  const match = useMemo(() => {
+    if (!active || active.page !== page || pageText?.page !== page) return null
+    return findPassage(pageText.items, active.text)
+  }, [active, page, pageText])
+
+  const onGetText = useCallback((content: TextContent) => {
+    // itemIndex in the text renderer counts every item, so keep the list as it is.
+    setPageText({ page, items: content.items.map((item) => ("str" in item ? item : { str: "" })) })
+  }, [page])
+
+  const renderText = useCallback(
+    ({ str, itemIndex }: { str: string; itemIndex: number }) => renderItem(str, match?.marks.get(itemIndex)),
+    [match],
+  )
+
+  const notice = match?.method === "none"
+    ? `Couldn’t mark the passage on page ${page}; its text is in Sources.`
+    : null
 
   const citedPages = conversation.turns.flatMap((turn) =>
     turn.state === "done" ? turn.answer.passages.filter((p) => p.cited).map((p) => p.page) : [],
@@ -75,7 +99,8 @@ export function Workspace({ document, onClose }: { document: DocumentInfo; onClo
           <PageRail pages={pages} current={page} cited={citedPages} onPage={goTo} />
           <div className="grid min-h-0 min-w-0 grid-rows-[48px_1fr] bg-viewer">
             <ViewerToolbar page={page} pages={pages} zoom={zoom} onPage={goTo} onZoom={setZoom} />
-            <PdfViewer fileUrl={api.pdfUrl(document.docId)} page={page} zoom={zoom} night={night} onLoaded={setPages} />
+            <PdfViewer fileUrl={api.pdfUrl(document.docId)} page={page} zoom={zoom} night={night} onLoaded={setPages}
+                       customTextRenderer={renderText} onGetTextSuccess={onGetText} notice={notice} />
           </div>
         </section>
         <AssistantPanel

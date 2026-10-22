@@ -108,6 +108,19 @@
   }
 }
 
+/* Cited passage in the pdf.js text layer: a yellow highlighter swept left to right
+   (instant with reduced motion, see below). The text itself stays the canvas's. */
+.textLayer mark.rl-mark {
+  color: transparent;
+  border-radius: 2px;
+  background: linear-gradient(rgb(255 225 77 / 0.55), rgb(255 225 77 / 0.55)) no-repeat left / 0% 100%;
+  animation: highlight-sweep 0.5s ease-out forwards;
+}
+
+@keyframes highlight-sweep {
+  to { background-size: 100% 100%; }
+}
+
 @keyframes stack-float {
   0%,
   100% { margin-top: 0; }
