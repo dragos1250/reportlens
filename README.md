@@ -50,7 +50,9 @@ It is built as a **Retrieval-Augmented Generation (RAG)** system, so the assista
 
 ![The start screen: an "Upload a report" button with a privacy note, and the two indexed annual reports, Deutsche Telekom 2025 and Vodafone FY26, with their passage counts.](docs/screenshots/01-choose-report.png)
 
-<img src="docs/screenshots/06-phone.png" width="280" alt="The start screen on a phone: the ReportLens title, the floating stack of pages, the headline and the Upload a report button, in one column.">
+<div align="center">
+  <img src="docs/screenshots/06-phone.png" width="280" alt="The start screen on a phone: the ReportLens title, the floating stack of pages, the headline and the Upload a report button, in one column.">
+</div>
 
 ## 🎯 Features
 
