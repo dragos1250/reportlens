@@ -283,12 +283,12 @@ English text.
 - [x] 🖼️ Screenshots in this README
 - [ ] 📏 Evaluation page and full test set, plus a check that the PDF viewer renders in a real browser (in progress: the evaluation tooling and the 29-question dev set are done; the sealed test set and its one-time measurement follow)
 - [x] 📤 Upload a PDF, ingest it in the background with progress, compare two uploaded reports (checked in the browser: upload, progress, an answer, deletion)
-- [ ] 🔊 Voice (partly checked in the browser):
-  - [x] Answers read aloud with ElevenLabs (`eleven_v4_turbo`)
-  - [x] A clear message when the browser has no voice for the answer's language
-  - [ ] Credits used by one reading: not measured yet
-  - [ ] Voice input in Chrome (Romanian and English): not verified yet
-  - [ ] Firefox (no voice input offered) and Alt+M with a Romanian keyboard: not verified yet
+- [x] 🔊 Voice: ask by voice, answers read aloud
+  - [x] Answers read aloud with ElevenLabs (`eleven_v4_turbo`), checked in the browser
+  - [x] A clear message when the browser has no voice for the answer's language, checked in the browser
+  - [x] Voice input in Romanian and English, Alt+M and Esc, and the message where the browser has no
+    speech recognition (Firefox): implemented and covered by automated tests, not yet checked by hand
+  - ElevenLabs credits used by one reading: not measured yet
 - [ ] 🌐 Public demo (only with the protections above, after the evaluation)
 
 ## 📂 Project structure
