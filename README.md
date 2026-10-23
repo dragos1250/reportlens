@@ -14,7 +14,7 @@
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey?style=for-the-badge)
 
-[🐳 Run it](#-getting-started) · [🖼️ Screenshots](#-demo) · [🏗️ Architecture](#%EF%B8%8F-architecture) · [🗺️ Roadmap](#%EF%B8%8F-roadmap)
+[🐳 Run it](#-getting-started) · [🖼️ Screenshots](#%EF%B8%8F-screenshots) · [🏗️ Architecture](#%EF%B8%8F-architecture) · [🗺️ Roadmap](#%EF%B8%8F-roadmap)
 
 </div>
 
@@ -27,6 +27,30 @@ Annual reports are long, dense and full of tables. **ReportLens** is a report vi
 It is built as a **Retrieval-Augmented Generation (RAG)** system, so the assistant answers only from the documents you load, and says **"I couldn't find this in the report"** instead of guessing.
 
 > 📌 This is a personal portfolio project, tested on publicly available telecom annual reports. It is not affiliated with any company.
+
+## 🖼️ Screenshots
+
+**Every answer cites its page**, and the cited passage is highlighted in the PDF.
+
+![The Deutsche Telekom annual report open at page 32 with the cited passages highlighted in yellow. The assistant answers that at the end of 2025 the 5G network covered 99.0 % of the population in Germany, with a "p. 32" citation and the Sources list below.](docs/screenshots/02-answer-citation.png)
+
+**Not in the report: it says so instead of guessing.**
+
+![Asked how many bitcoins Deutsche Telekom holds, the assistant shows a "Not in this report" block, says it will not make up an answer, and lists the pages it checked: 8, 115, 121, 164 and 300.](docs/screenshots/03-not-in-report.png)
+
+**Select & explain**: select a passage and ask about it.
+
+![A paragraph on page 6 of the Deutsche Telekom report is selected and a small toolbar offers "Explain this" and "Ask about this". The panel quotes the selection with its page and explains it, noting that the explanation is based only on that text.](docs/screenshots/04-select-explain.png)
+
+**Compare two reports**: each figure cites its report and page.
+
+![Deutsche Telekom compared with Vodafone. The answer gives each company's revenue with citations labelled "Deutsche Telekom p. 304" and "Vodafone p. 17", and says that the two financial years differ.](docs/screenshots/05-compare.png)
+
+**Start screen** (desktop and phone): upload a PDF or choose a report.
+
+![The start screen: an "Upload a report" button with a privacy note, and the two indexed annual reports, Deutsche Telekom 2025 and Vodafone FY26, with their passage counts.](docs/screenshots/01-choose-report.png)
+
+<img src="docs/screenshots/06-phone.png" width="280" alt="The start screen on a phone: the ReportLens title, the floating stack of pages, the headline and the Upload a report button, in one column.">
 
 ## 🎯 Features
 
@@ -44,17 +68,7 @@ It is built as a **Retrieval-Augmented Generation (RAG)** system, so the assista
 ## 🎬 Demo
 
 Run it on your machine with one command (see [Getting started](#-getting-started)). There is no public instance yet.
-
-Screenshots (in `docs/screenshots/`) are being added:
-
-| | |
-|---|---|
-| 📚 Choosing a report | _coming soon_ |
-| 📌 An answer with its citation, the passage marked in the PDF | _coming soon_ |
-| 🚫 "Not in this report" | _coming soon_ |
-| 🖍️ Select & explain | _coming soon_ |
-| 🆚 Comparing two reports, citations labelled by report | _coming soon_ |
-| 📱 Phone layout | _coming soon_ |
+See the [screenshots](#%EF%B8%8F-screenshots) above.
 
 ## 🏗️ Architecture
 
@@ -258,7 +272,7 @@ English text.
 - [x] 🖍️ Select & explain
 - [x] 🆚 Compare two reports (the formal evaluation still covers the Vodafone report only; it is extended in the evaluation stage)
 - [x] 🐳 Docker Compose: the whole app with one command
-- [ ] 🖼️ Screenshots in this README
+- [x] 🖼️ Screenshots in this README
 - [ ] 📏 Evaluation page and full test set, plus a check that the PDF viewer renders in a real browser (in progress: the evaluation tooling and the 29-question dev set are done; the sealed test set and its one-time measurement follow)
 - [x] 📤 Upload a PDF, ingest it in the background with progress, compare two uploaded reports (checked in the browser: upload, progress, an answer, deletion)
 - [ ] 🔊 Voice (partly checked in the browser):
