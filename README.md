@@ -148,7 +148,9 @@ documents.
     uploaded reports and past a spending limit. If no voice is installed
     for the answer's language (often Romanian on Windows), the app says so instead of reading
     with another voice.
-  - **ElevenLabs** (model `eleven_flash_v2_5`, which supports Romanian) works only when the server
+  - **ElevenLabs** (model `eleven_v4_turbo` by default, set by `ELEVENLABS_MODEL`; in the author's
+    manual check `eleven_flash_v2_5` misread numbers with the same voice, `eleven_v4_turbo` did not)
+    works only when the server
     has `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID`. The backend reads the answer it wrote,
     by its id, and sends ElevenLabs only the text to read. Before any paid call: 5 requests a minute
     per IP, 2,000 characters a day per IP, 20,000 a day overall and a monthly cap (8,000 by default,
@@ -258,8 +260,13 @@ English text.
 - [x] 🐳 Docker Compose: the whole app with one command
 - [ ] 🖼️ Screenshots in this README
 - [ ] 📏 Evaluation page and full test set, plus a check that the PDF viewer renders in a real browser (in progress: the evaluation tooling and the 29-question dev set are done; the sealed test set and its one-time measurement follow)
-- [ ] 📤 Upload a PDF, ingest it in the background with progress, compare two uploaded reports
-- [ ] 🔊 Voice: ask by voice, answers read aloud (implemented; awaiting a browser check)
+- [x] 📤 Upload a PDF, ingest it in the background with progress, compare two uploaded reports (checked in the browser: upload, progress, an answer, deletion)
+- [ ] 🔊 Voice (partly checked in the browser):
+  - [x] Answers read aloud with ElevenLabs (`eleven_v4_turbo`)
+  - [x] A clear message when the browser has no voice for the answer's language
+  - [ ] Credits used by one reading: not measured yet
+  - [ ] Voice input in Chrome (Romanian and English): not verified yet
+  - [ ] Firefox (no voice input offered) and Alt+M with a Romanian keyboard: not verified yet
 - [ ] 🌐 Public demo (only with the protections above, after the evaluation)
 
 ## 📂 Project structure

@@ -8,8 +8,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *
  * @param apiKey           ELEVENLABS_API_KEY; never logged (see toString)
  * @param voiceId          ELEVENLABS_VOICE_ID
- * @param model            ELEVENLABS_MODEL, default eleven_flash_v2_5 (supports Romanian, half the
- *                         price of the multilingual models, accepts language_code)
+ * @param model            ELEVENLABS_MODEL, default eleven_v4_turbo: in the author's manual check it read
+ *                         numbers correctly, where eleven_flash_v2_5 misread them with the same voice
  * @param baseUrl          the ElevenLabs API; replaced in tests
  * @param maxChars         characters read per answer
  * @param perMinute        speech requests per client IP per minute

@@ -89,7 +89,7 @@ services:
       # this container only (never the AI service, never the browser).
       ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
       ELEVENLABS_VOICE_ID: ${ELEVENLABS_VOICE_ID:-}
-      ELEVENLABS_MODEL: ${ELEVENLABS_MODEL:-eleven_flash_v2_5}
+      ELEVENLABS_MODEL: ${ELEVENLABS_MODEL:-eleven_v4_turbo}
       ELEVENLABS_MONTHLY_CHARS: ${ELEVENLABS_MONTHLY_CHARS:-8000}
       SPEECH_MAX_CHARS: ${SPEECH_MAX_CHARS:-400}
       SPEECH_PER_MINUTE: ${SPEECH_PER_MINUTE:-5}
