@@ -24,7 +24,7 @@
 
 Annual reports are long, dense and full of tables. **ReportLens** is a report viewer with an AI assistant built next to it: the PDF is on the left, the assistant is on the right, and every answer links back to the page and passage it is based on.
 
-It is built as a **Retrieval-Augmented Generation (RAG)** system, so the assistant answers only from the documents you load, and says **"I couldn't find this in the report"** instead of guessing.
+It is built as a **Retrieval-Augmented Generation (RAG)** system, so the assistant answers only from the documents you load, and says **"Not in this report"** instead of guessing.
 
 > 📌 This is a personal portfolio project, tested on publicly available telecom annual reports. It is not affiliated with any company.
 
@@ -57,7 +57,7 @@ It is built as a **Retrieval-Augmented Generation (RAG)** system, so the assista
 - 📄 **Report viewer with an AI side panel**: read the PDF and ask questions in the same screen
 - 🖍️ **Select & explain**: highlight a paragraph or table and press *Explain this* for a plain-language explanation
 - 📌 **Verifiable citations**: every answer links to the page, with the source passage highlighted
-- 🔎 **Hybrid search**: semantic search (embeddings) combined with keyword search (BM25) and re-ranking, so numbers and names are found reliably
+- 🔎 **Hybrid search**: semantic search (embeddings) combined with keyword search (BM25) and re-ranking, so numbers and names are more likely to be found
 - 🚫 **"Not in the report" mode**: the assistant refuses to answer when there is no supporting source
 - 🆚 **Compare two reports**: each report is searched on its own, every figure cites its report and page, and the assistant says when the financial years differ
 - 🌍 **Ask in Romanian or English**: multilingual embeddings, documents in English
@@ -112,7 +112,7 @@ Docker network only. The LLM key is passed to the `ai-service` container alone.
 Requirements: Docker with Compose v2, and an OpenAI API key.
 
 ```bash
-git clone <this repository>
+git clone https://github.com/dragos1250/reportlens.git
 cd reportlens
 cp .env.example .env    # then set LLM_API_KEY and POSTGRES_PASSWORD (never commit .env)
 docker compose up --build
@@ -255,6 +255,12 @@ metrics page come in the evaluation stage. Results so far, from
 | ⚠️ Wrong refusals on answerable questions | 6/10 |
 | 💵 Cost of those 22 questions | $0.003843 |
 
+The wrong refusals happen when the search misses the passage that holds the answer: the
+model then sees no supporting passage and says "not in the report" rather than guess (the guard
+refused none of these questions). These figures come from an early configuration on a small set;
+the evaluation stage measures them again and tests improvements (re-ranking, query translation,
+the guard's threshold) on a separate dev set, with a test set kept for one final measurement.
+
 The metric definitions are in [`eval/README.md`](eval/README.md). Romanian questions are the
 weak spot: the keyword search only helps when they share names, numbers or dates with the
 English text.
@@ -320,15 +326,7 @@ Released under the [MIT License](LICENSE).
 
 ## 👤 Author
 
-**Dragoș-Mihai Răducanu**
+**Dragoș-Mihai Răducanu** · repository: [github.com/dragos1250/reportlens](https://github.com/dragos1250/reportlens)
 
-[![GitHub](https://img.shields.io/badge/GitHub-181717?style=flat&logo=github&logoColor=white)](https://github.com/<your-username>)
+[![GitHub](https://img.shields.io/badge/GitHub-181717?style=flat&logo=github&logoColor=white)](https://github.com/dragos1250)
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-0A66C2?style=flat&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/<your-profile>)
-
----
-
-<div align="center">
-
-⭐ If you find this project interesting, feel free to star it!
-
-</div>
