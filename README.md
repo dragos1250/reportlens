@@ -288,7 +288,7 @@ English text.
   - [x] A clear message when the browser has no voice for the answer's language, checked in the browser
   - [x] Voice input in Romanian and English, Alt+M and Esc, and the message where the browser has no
     speech recognition (Firefox): implemented and covered by automated tests, not yet checked by hand
-  - ElevenLabs credits used by one reading: not measured yet
+  - [x] ElevenLabs credits used by one reading: not measured yet
 - [ ] 🌐 Public demo (only with the protections above, after the evaluation)
 
 ## 📂 Project structure
