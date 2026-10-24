@@ -22,7 +22,7 @@
 
 <div align="center">
 
-## ✨ What is ReportLens?
+## ✨ What is ReportLens? ✨
 
 </div>
 
@@ -34,7 +34,7 @@ It is built as a **Retrieval-Augmented Generation (RAG)** system, so the assista
 
 <div align="center">
 
-## 🖼️ Screenshots
+## 🖼️ Screenshots 🖼️
 
 </div>
 
@@ -64,7 +64,7 @@ It is built as a **Retrieval-Augmented Generation (RAG)** system, so the assista
 
 <div align="center">
 
-## 🎯 Features
+## 🎯 Features 🎯
 
 </div>
 
@@ -81,7 +81,7 @@ It is built as a **Retrieval-Augmented Generation (RAG)** system, so the assista
 
 <div align="center">
 
-## 🎬 Demo
+## 🎬 Demo 🎬
 
 </div>
 
@@ -90,7 +90,7 @@ See the [screenshots](#%EF%B8%8F-screenshots) above.
 
 <div align="center">
 
-## 🏗️ Architecture
+## 🏗️ Architecture 🏗️
 
 </div>
 
@@ -119,7 +119,7 @@ Docker network only. The LLM key is passed to the `ai-service` container alone.
 
 <div align="center">
 
-## 🧰 Tech stack
+## 🧰 Tech stack 🧰
 
 </div>
 
@@ -133,7 +133,7 @@ Docker network only. The LLM key is passed to the `ai-service` container alone.
 
 <div align="center">
 
-## 🚀 Getting started
+## 🚀 Getting started 🚀
 
 </div>
 
@@ -270,7 +270,7 @@ py -3.11 scripts/check_nginx.py
 
 <div align="center">
 
-## 📏 Evaluation
+## 📏 Evaluation 📏
 
 </div>
 
@@ -301,7 +301,7 @@ English text.
 
 <div align="center">
 
-## 🗺️ Roadmap
+## 🗺️ Roadmap 🗺️
 
 </div>
 
@@ -329,7 +329,7 @@ English text.
 
 <div align="center">
 
-## 📂 Project structure
+## 📂 Project structure 📂
 
 </div>
 
@@ -346,7 +346,7 @@ reportlens/
 
 <div align="center">
 
-## ⚠️ Notes
+## ⚠️ Notes ⚠️
 
 </div>
 
@@ -368,7 +368,7 @@ reportlens/
 
 <div align="center">
 
-## 📜 License
+## 📜 License 📜
 
 </div>
 
@@ -376,7 +376,7 @@ Released under the [MIT License](LICENSE).
 
 <div align="center">
 
-## 👤 Author
+## 👤 Author 👤
 
 </div>
 
