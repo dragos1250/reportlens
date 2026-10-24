@@ -20,8 +20,10 @@
 
 ---
 
-<div align = "center"> 
-  # ✨ What is ReportLens? 
+<div align="center">
+
+## ✨ What is ReportLens?
+
 </div>
 
 Annual reports are long, dense and full of tables. **ReportLens** is a report viewer with an AI assistant built next to it: the PDF is on the left, the assistant is on the right, and every answer links back to the page and passage it is based on.
@@ -30,7 +32,11 @@ It is built as a **Retrieval-Augmented Generation (RAG)** system, so the assista
 
 > 📌 This is a personal portfolio project, tested on publicly available telecom annual reports. It is not affiliated with any company.
 
+<div align="center">
+
 ## 🖼️ Screenshots
+
+</div>
 
 **Every answer cites its page**, and the cited passage is highlighted in the PDF.
 
@@ -56,7 +62,11 @@ It is built as a **Retrieval-Augmented Generation (RAG)** system, so the assista
   <img src="docs/screenshots/06-phone.png" width="280" alt="The start screen on a phone: the ReportLens title, the floating stack of pages, the headline and the Upload a report button, in one column.">
 </div>
 
+<div align="center">
+
 ## 🎯 Features
+
+</div>
 
 - 📄 **Report viewer with an AI side panel**: read the PDF and ask questions in the same screen
 - 🖍️ **Select & explain**: highlight a paragraph or table and press *Explain this* for a plain-language explanation
@@ -69,12 +79,20 @@ It is built as a **Retrieval-Augmented Generation (RAG)** system, so the assista
 - 🔊 **Voice** (optional): ask by voice (Romanian or English) and have answers read aloud, by the browser's voice or ElevenLabs (the default when the server has a key); see [Voice](#-voice)
 - 📊 **Evaluation** (in progress): a hand-written test set with expected pages; results so far are in [Evaluation](#-evaluation)
 
+<div align="center">
+
 ## 🎬 Demo
+
+</div>
 
 Run it on your machine with one command (see [Getting started](#-getting-started)). There is no public instance yet.
 See the [screenshots](#%EF%B8%8F-screenshots) above.
 
+<div align="center">
+
 ## 🏗️ Architecture
+
+</div>
 
 ```mermaid
 flowchart LR
@@ -99,7 +117,11 @@ Docker network only. The LLM key is passed to the `ai-service` container alone.
 4. 📌 **Citation**: the answer is returned with document, page and passage references
 5. 🚫 **Guardrail**: if nothing relevant is found, the assistant says so
 
+<div align="center">
+
 ## 🧰 Tech stack
+
+</div>
 
 | Layer | Technology |
 |---|---|
@@ -109,7 +131,11 @@ Docker network only. The LLM key is passed to the `ai-service` container alone.
 | 🗄️ Database | PostgreSQL + pgvector |
 | 🐳 DevOps | Docker, Docker Compose |
 
+<div align="center">
+
 ## 🚀 Getting started
+
+</div>
 
 ### 🐳 With Docker (one command)
 
@@ -242,7 +268,11 @@ cd frontend; npm test; cd ..
 py -3.11 scripts/check_nginx.py
 ```
 
+<div align="center">
+
 ## 📏 Evaluation
+
+</div>
 
 Quality is measured, not assumed, but the test set is still small: **10 retrieval questions
 (5 Romanian-English pairs) and 12 out-of-scope questions, on the Vodafone report only**. The
@@ -269,7 +299,11 @@ The metric definitions are in [`eval/README.md`](eval/README.md). Romanian quest
 weak spot: the keyword search only helps when they share names, numbers or dates with the
 English text.
 
+<div align="center">
+
 ## 🗺️ Roadmap
+
+</div>
 
 - [x] 🎬 Project setup and repository
 - [x] 📥 PDF ingestion and chunking with page metadata
@@ -293,7 +327,11 @@ English text.
   - [x] ElevenLabs credits used by one reading: not measured yet
 - [ ] 🌐 Public demo (only with the protections above, after the evaluation)
 
+<div align="center">
+
 ## 📂 Project structure
+
+</div>
 
 ```text
 reportlens/
@@ -306,7 +344,11 @@ reportlens/
 └── docker-compose.yml
 ```
 
+<div align="center">
+
 ## ⚠️ Notes
+
+</div>
 
 - 📚 Reports are **not stored in this repository**; a script downloads them from their official public sources.
 - 🔑 API keys live only in environment variables on the server, never in the frontend or the repo.
@@ -324,13 +366,21 @@ reportlens/
   daily total is read from the database.
 - 🖨️ **Scanned pages are not covered.** Pages without a text layer are neither indexed for the assistant nor searchable with "Search the report text" (there is no OCR). In the test report (Vodafone Form 20-F FY26, 588 pages), 116 pages have no text layer and the same 116 pages have no passage in the database: an exact overlap, mostly scanned exhibits (pages 262, 341-401 and 480-581, with gaps).
 
+<div align="center">
+
 ## 📜 License
+
+</div>
 
 Released under the [MIT License](LICENSE).
 
+<div align="center">
+
 ## 👤 Author
+
+</div>
 
 **Dragoș-Mihai Răducanu** · repository: [github.com/dragos1250/reportlens](https://github.com/dragos1250/reportlens)
 
 [![GitHub](https://img.shields.io/badge/GitHub-181717?style=flat&logo=github&logoColor=white)](https://github.com/dragos1250)
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-0A66C2?style=flat&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/<your-profile>)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-0A66C2?style=flat&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/drago%C8%99-mihai-r%C4%83ducanu/)
