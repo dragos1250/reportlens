@@ -20,7 +20,7 @@
 
 ---
 
-## ✨ What is ReportLens?
+<div align = "center"> ## ✨ What is ReportLens? </div>
 
 Annual reports are long, dense and full of tables. **ReportLens** is a report viewer with an AI assistant built next to it: the PDF is on the left, the assistant is on the right, and every answer links back to the page and passage it is based on.
 
