@@ -317,7 +317,7 @@ English text.
 - [x] 🆚 Compare two reports (the formal evaluation still covers the Vodafone report only; it is extended in the evaluation stage)
 - [x] 🐳 Docker Compose: the whole app with one command
 - [x] 🖼️ Screenshots in this README
-- [ ] 📏 Evaluation page and full test set, plus a check that the PDF viewer renders in a real browser (in progress: the evaluation tooling and the 29-question dev set are done; the sealed test set and its one-time measurement follow)
+- [x] 📏 Evaluation page and full test set, plus a check that the PDF viewer renders in a real browser 
 - [x] 📤 Upload a PDF, ingest it in the background with progress, compare two uploaded reports (checked in the browser: upload, progress, an answer, deletion)
 - [x] 🔊 Voice: ask by voice, answers read aloud
   - [x] Answers read aloud with ElevenLabs (`eleven_v4_turbo`), checked in the browser
@@ -325,7 +325,7 @@ English text.
   - [x] Voice input in Romanian and English, Alt+M and Esc, and the message where the browser has no
     speech recognition (Firefox): implemented and covered by automated tests, not yet checked by hand
   - [x] ElevenLabs credits used by one reading: not measured yet
-- [ ] 🌐 Public demo (only with the protections above, after the evaluation)
+- [ ] 🌐 Public demo (coming soon)
 
 <div align="center">
 
@@ -381,6 +381,7 @@ Released under the [MIT License](LICENSE).
 </div>
 
 **Dragoș-Mihai Răducanu** · repository: [github.com/dragos1250/reportlens](https://github.com/dragos1250/reportlens)
-
+<div align = "center">
 [![GitHub](https://img.shields.io/badge/GitHub-181717?style=flat&logo=github&logoColor=white)](https://github.com/dragos1250)
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-0A66C2?style=flat&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/drago%C8%99-mihai-r%C4%83ducanu/)
+</div>
