@@ -14,7 +14,7 @@
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey?style=for-the-badge)
 
-[🐳 Run it](#-getting-started) · [🖼️ Screenshots](#%EF%B8%8F-screenshots) · [🏗️ Architecture](#%EF%B8%8F-architecture) · [🗺️ Roadmap](#%EF%B8%8F-roadmap)
+[🐳 Run it](#getting-started) · [🖼️ Screenshots](#screenshots) · [🏗️ Architecture](#architecture) · [🗺️ Roadmap](#roadmap)
 
 </div>
 
@@ -32,6 +32,7 @@ It is built as a **Retrieval-Augmented Generation (RAG)** system, so the assista
 
 > 📌 This is a personal portfolio project, tested on publicly available telecom annual reports. It is not affiliated with any company.
 
+<a name="screenshots"></a>
 <div align="center">
 
 ## 🖼️ Screenshots 🖼️
@@ -77,7 +78,7 @@ It is built as a **Retrieval-Augmented Generation (RAG)** system, so the assista
 - 🌍 **Ask in Romanian or English**: multilingual embeddings, documents in English
 - 📤 **Upload your own PDF** (when the server allows it): ingested in the background with visible progress, then searchable, citable and comparable with another report
 - 🔊 **Voice** (optional): ask by voice (Romanian or English) and have answers read aloud, by the browser's voice or ElevenLabs (the default when the server has a key); see [Voice](#-voice)
-- 📊 **Evaluation** (in progress): a hand-written test set with expected pages; results so far are in [Evaluation](#-evaluation)
+- 📊 **Evaluation** (in progress): a hand-written test set with expected pages; results so far are in [Evaluation](#evaluation)
 
 <div align="center">
 
@@ -85,9 +86,10 @@ It is built as a **Retrieval-Augmented Generation (RAG)** system, so the assista
 
 </div>
 
-Run it on your machine with one command (see [Getting started](#-getting-started)). There is no public instance yet.
-See the [screenshots](#%EF%B8%8F-screenshots) above.
+Run it on your machine with one command (see [Getting started](#getting-started)). There is no public instance yet.
+See the [screenshots](#screenshots) above.
 
+<a name="architecture"></a>
 <div align="center">
 
 ## 🏗️ Architecture 🏗️
@@ -131,6 +133,7 @@ Docker network only. The LLM key is passed to the `ai-service` container alone.
 | 🗄️ Database | PostgreSQL + pgvector |
 | 🐳 DevOps | Docker, Docker Compose |
 
+<a name="getting-started"></a>
 <div align="center">
 
 ## 🚀 Getting started 🚀
@@ -268,6 +271,7 @@ cd frontend; npm test; cd ..
 py -3.11 scripts/check_nginx.py
 ```
 
+<a name="evaluation"></a>
 <div align="center">
 
 ## 📏 Evaluation 📏
@@ -299,6 +303,7 @@ The metric definitions are in [`eval/README.md`](eval/README.md). Romanian quest
 weak spot: the keyword search only helps when they share names, numbers or dates with the
 English text.
 
+<a name="roadmap"></a>
 <div align="center">
 
 ## 🗺️ Roadmap 🗺️
@@ -380,7 +385,12 @@ Released under the [MIT License](LICENSE).
 
 </div>
 
+<div align="center">
+
 **Dragoș-Mihai Răducanu** · repository: [github.com/dragos1250/reportlens](https://github.com/dragos1250/reportlens)
+
+</div>
+
 <div align="center">
 
 [![GitHub](https://img.shields.io/badge/GitHub-181717?style=flat&logo=github&logoColor=white)](https://github.com/dragos1250) [![LinkedIn](https://img.shields.io/badge/LinkedIn-0A66C2?style=flat&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/drago%C8%99-mihai-r%C4%83ducanu/)
